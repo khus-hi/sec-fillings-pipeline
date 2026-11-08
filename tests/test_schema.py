@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from extraction.schema import (
     CATEGORY_DESCRIPTIONS,
     LLM_TASKS,
+    SCHEMA_VERSION,
     EmployeesExtraction,
     FilingRecord,
     FinancialsExtraction,
@@ -21,7 +22,7 @@ from extraction.schema import (
 # What a model answer looks like, as raw JSON text.
 FINANCIALS_JSON = """{
   "revenue": {"value": 391035, "unit": "millions", "quote": "Total net sales | $ | 391,035"},
-  "net_income": {"value": 93736, "unit": "millions"}
+  "net_income": {"value": 93736, "unit": "millions", "quote": "Net income | $ | 93,736"}
 }"""
 
 
@@ -58,16 +59,19 @@ def test_amount_is_converted_to_dollars_in_code():
 
 def test_net_loss_may_be_negative_but_revenue_may_not():
     fin = FinancialsExtraction(
-        revenue={"value": 10, "unit": "billions"}, net_income={"value": -2.5, "unit": "billions"}
+        revenue={"value": 10, "unit": "billions", "quote": "Revenue 10"},
+        net_income={"value": -2.5, "unit": "billions", "quote": "Net loss (2.5)"},
     )
     assert fin.net_income.in_usd() == -2_500_000_000
     with pytest.raises(ValidationError, match="revenue must be positive"):
-        FinancialsExtraction(revenue={"value": -1, "unit": "millions"}, net_income=None)
+        FinancialsExtraction(
+            revenue={"value": -1, "unit": "millions", "quote": "x"}, net_income=None
+        )
 
 
 def test_unknown_unit_and_extra_keys_are_rejected():
     with pytest.raises(ValidationError):
-        ReportedAmount(value=1, unit="lakhs")
+        ReportedAmount(value=1, unit="lakhs", quote=None)
     with pytest.raises(ValidationError, match="Extra inputs"):
         FinancialsExtraction.model_validate(
             {"revenue": None, "net_income": None, "confidence": 0.9}
@@ -75,7 +79,7 @@ def test_unknown_unit_and_extra_keys_are_rejected():
 
 
 def test_non_usd_amount_has_no_dollar_value():
-    assert ReportedAmount(value=5, unit="millions", currency="EUR").in_usd() is None
+    assert ReportedAmount(value=5, unit="millions", currency="EUR", quote="x").in_usd() is None
 
 
 def test_missing_values_must_be_explicit_null():
@@ -95,7 +99,15 @@ def test_employee_count_bounds(bad):
 
 
 def test_employee_count_from_json_string_number():
-    assert EmployeesExtraction.model_validate_json('{"employee_count": "164000"}').quote is None
+    parsed = EmployeesExtraction.model_validate_json('{"employee_count": "164000", "quote": null}')
+    assert parsed.employee_count == 164000
+
+
+def test_quote_key_is_required():
+    with pytest.raises(ValidationError, match="quote"):
+        EmployeesExtraction.model_validate_json('{"employee_count": 164000}')
+    with pytest.raises(ValidationError, match="quote"):
+        ReportedAmount.model_validate({"value": 1, "unit": "millions"})
 
 
 # ---------- Risk factors ----------
@@ -149,7 +161,7 @@ def test_record_derives_fiscal_year_dollars_and_padded_cik():
         93_736_000_000,
     )
     dumped = json.loads(rec.model_dump_json())
-    assert dumped["revenue_usd"] == 391_035_000_000 and dumped["schema_version"] == "1"
+    assert dumped["revenue_usd"] == 391_035_000_000 and dumped["schema_version"] == SCHEMA_VERSION
 
 
 @pytest.mark.parametrize("period_end, year", [(date(2024, 9, 28), 2024), (date(2025, 1, 31), 2025)])
@@ -177,7 +189,8 @@ def test_clean_record_has_no_warnings():
 
 def test_sanity_warnings_catch_unit_mistakes():
     wrong_unit = FinancialsExtraction(
-        revenue={"value": 391035, "unit": "units"}, net_income={"value": 93736, "unit": "millions"}
+        revenue={"value": 391035, "unit": "units", "quote": "391,035"},
+        net_income={"value": 93736, "unit": "millions", "quote": "93,736"},
     )
     warnings = sanity_warnings(
         _record(financials=wrong_unit, employees={"employee_count": 164, "quote": None})

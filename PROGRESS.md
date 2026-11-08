@@ -14,8 +14,8 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 |---|---|---|
 | 1 | Ingestion: EDGAR → local S3 (SeaweedFS) raw zone, hashed manifest | **Done** |
 | 2 | Parsing: sections + chunking | **Done** (one known gap: SO Item 7) |
-| 3 | Extraction schema (Pydantic) | **Built and tested offline; waiting on the local-model check** |
-| 4 | LLM extraction, retries, quarantine | not started |
+| 3 | Extraction schema (Pydantic) | **Done** |
+| 4 | LLM extraction, retries, quarantine | **Built and tested offline; waiting on the first real run** |
 | 5 | Evaluation on a 30-document gold set | not started |
 | 6 | DuckDB + dbt staging → marts, tests | not started |
 | 7 | Airflow DAG (Astro, as in Project 1) | not started |
@@ -59,10 +59,24 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
   answers + provenance, computed `fiscal_year`, `revenue_usd`, `net_income_usd`), 11 risk
   categories with definitions, `sanity_warnings()`, and `llm_json_schema()` (flat schema for
   Ollama). `python -m extraction.schema` prints the schemas.
-- `extraction/try_schema.py`: sends one real chunk per task to the local model, constrained to the
-  schema, and reports validity, latency and tokens.
+- Quote fields are required (nullable) since schema version 2: on the first real run every
+  optional quote came back empty.
 - Tests: units and sign rules, explicit nulls, extra keys, category normalisation, list bounds and
   dedupe, manifest field formats, sanity warnings, schema flattening, Ollama request shape.
+
+## Stage 4: what exists
+
+- `extraction/context.py`: excerpt per task (employee-count lines, best income-statement chunk,
+  Item 1A risk headings), capped at 6,000 characters.
+- `extraction/prompts.py`: system prompt, task instructions, retry message; `PROMPT_VERSION`.
+- `extraction/llm.py`: `LLMClient` protocol and `OllamaClient` (constrained JSON, `think=false`,
+  temperature 0, 8k context; returns latency, tokens, cost).
+- `extraction/extract.py`: the job. Retries with validation errors (3 attempts), quarantine,
+  grounding warnings, record assembly, idempotent by (sha256, task, model, extractor version).
+  Tables: `extracted.task_results`, `extracted.quarantine`, `extracted.filings`, `meta.extract_runs`.
+- `extraction/report.py`: validity, retries, quarantine, latency, tokens, warnings, values.
+- Tests: a scripted fake model drives retry, quarantine and recovery, skip and force, version bump,
+  grounding warnings, server-down handling, missing period end.
 
 ## Decisions and why
 
@@ -80,6 +94,10 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | Money as value + unit, converted in code | small models mis-scale numbers by 1,000x | ask for dollars directly |
 | One schema per task (financials, employees, risks) | each call fits 8k context with its own section; partial success possible | single schema over the whole filing |
 | Fixed list of 11 risk categories, near-miss aliases, no silent "other" | stable for the by-industry mart; drift stays visible | free-text categories (unaggregatable) |
+| Excerpt chosen per task, not "first chunk with the keyword" | first real test fed JPM's model the wrong paragraph | send the whole section (doesn't fit 8k) or embeddings retrieval (another model to run) |
+| Risk factors from Item 1A headings | whole list in ~1,500 tokens; the first chunk only covers one or two risks | first chunk; map-reduce over every chunk (10x the calls) |
+| Retry with Pydantic errors, then quarantine | the model fixes most mistakes when told exactly what failed; failures stay visible | drop invalid answers; retry blindly |
+| Grounding warnings, not rejections | a number missing from the excerpt is a strong hallucination signal, but quotes can be reformatted | reject (would quarantine honest reformatting) |
 | Project 1 patterns reused | `.env` config, store interface, ruff + pytest CI, pinned dev deps | — |
 
 ## Real-run metrics
@@ -113,7 +131,12 @@ Short sections (< 2,000 chars, i.e. probably the wrong text), out of 150 filings
 
 Remaining: SO Item 7 (all 3 years, 1,245 chars) and GE's 2024 Item 1 (37 chars).
 
+Stage 3 local-model check (`qwen3:8b`, one excerpt per task, AAPL and JPM): 6 / 6 answers valid
+on the first attempt, 2.4-13.8 s per call, prompts up to 2,502 tokens. It also showed the problems
+Stage 4 fixes: every optional quote empty, JPM's employee excerpt was the wrong paragraph, and the
+first Item 1A chunk gives a shallow risk list.
+
 ## Next step
 
-Run `python -m extraction.try_schema` on a few tickers to confirm the local model fills each schema,
-then Stage 4: the extraction job (prompts, chunk selection, retries, quarantine, per-document logs).
+Run Stage 4 on a few filings, then all 150 (`python -m extraction.extract`), and record validity,
+retries, quarantine, latency and tokens here from `python -m extraction.report`.
