@@ -20,9 +20,9 @@ class Settings:
     data_dir: Path
     duckdb_path: Path
     filings_per_company: int = 3
-    storage_backend: str = "s3"  # s3 (MinIO or AWS) | local
+    storage_backend: str = "s3"  # s3 (SeaweedFS or AWS) | local
     s3_bucket: str | None = None
-    s3_endpoint_url: str | None = None  # set for MinIO, leave empty for AWS
+    s3_endpoint_url: str | None = None  # set for a local S3 server, empty for AWS
     aws_region: str = "us-east-1"
     max_requests_per_second: float = 5.0  # SEC allows 10; we stay well under
 

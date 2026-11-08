@@ -6,7 +6,7 @@ Everything here is free. Tick each box before running Stage 1.
 |---|---|---|---|
 | 1 | **Python 3.12 or 3.13** | all pipeline code | `python --version` |
 | 2 | **Git** | version control | `git --version` |
-| 3 | **Docker Desktop** (or Docker Engine on Linux) | MinIO now, Airflow in Stage 7 | `docker run --rm hello-world` |
+| 3 | **Docker Desktop** (or Docker Engine on Linux) | local S3 server now, Airflow in Stage 7 | `docker run --rm hello-world` |
 | 4 | **Astro CLI** | same Airflow setup as Project 1 (Stage 7, can wait) | `astro version` |
 | 5 | **Ollama** | runs the local LLM (Stage 4, install now so the model can download) | `ollama --version` |
 | 6 | **A local model** (see table below) | the extraction LLM | `ollama run qwen3:8b "say hi"` |
