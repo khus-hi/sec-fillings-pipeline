@@ -41,6 +41,8 @@ class RawStore(Protocol):
 
     def uri(self, key: str) -> str: ...
 
+    def key_from_uri(self, uri: str) -> str: ...
+
 
 class LocalStore:
     """A folder on disk that mimics a bucket. Handy for tests and offline work."""
@@ -78,6 +80,9 @@ class LocalStore:
 
     def uri(self, key: str) -> str:
         return str(self._path(key))
+
+    def key_from_uri(self, uri: str) -> str:
+        return Path(uri).relative_to(self.root).as_posix()
 
 
 class S3Store:
@@ -147,3 +152,9 @@ class S3Store:
 
     def uri(self, key: str) -> str:
         return f"s3://{self.bucket}/{key}"
+
+    def key_from_uri(self, uri: str) -> str:
+        prefix = f"s3://{self.bucket}/"
+        if not uri.startswith(prefix):
+            raise ValueError(f"{uri} is not in bucket {self.bucket}")
+        return uri.removeprefix(prefix)

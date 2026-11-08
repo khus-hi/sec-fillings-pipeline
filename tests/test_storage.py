@@ -59,6 +59,11 @@ def test_list_keys_sorted_and_prefixed(store):
     ]
 
 
+def test_key_from_uri_round_trips(store):
+    key = "raw/edgar/10-K/filing_date=2024-11-01/a.htm"
+    assert store.key_from_uri(store.uri(key)) == key
+
+
 def test_uri(tmp_path, s3_store):
     assert s3_store.uri("raw/x.htm") == "s3://sec-raw/raw/x.htm"
     assert LocalStore(tmp_path).uri("raw/x.htm") == str(tmp_path / "raw/x.htm")

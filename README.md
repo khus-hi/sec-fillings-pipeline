@@ -3,7 +3,7 @@
 Turns unstructured 10-K filings from SEC EDGAR into reliable, queryable tables using a local
 open-source LLM, with validation, retries, a quarantine table and a measured evaluation.
 
-**Status:** Stage 1 of 9 (ingestion) built. See [PROGRESS.md](PROGRESS.md).
+**Status:** Stages 1 (ingestion) and 2 (parsing) built. See [PROGRESS.md](PROGRESS.md).
 
 ## Architecture
 
@@ -25,7 +25,7 @@ flowchart LR
 
 Boxes after the raw zone are planned and get built stage by stage.
 
-## Quick start (Stage 1)
+## Quick start
 
 Run these one at a time. (macOS ships `python3`, not `python`; inside the activated venv both work.)
 
@@ -50,6 +50,11 @@ Run these one at a time. (macOS ships `python3`, not `python`; inside the activa
    python -m ingestion.ingest
    python -m ingestion.ingest
    python -m ingestion.summary
+   ```
+5. Parse every filing into sections and chunks, then check coverage:
+   ```bash
+   python -m parsing.parse
+   python -m parsing.report
    ```
 
 ## Repository layout
@@ -90,7 +95,23 @@ _Filled in at Stage 5 from a real run. No numbers are written here until they ar
 - **Polite client.** 5 requests/second (SEC's limit is 10), retries with exponential backoff on
   429 and 5xx, and a required contact email in the User-Agent.
 
-_Chunking, validation and retries, and model choice are added in Stages 2 to 4._
+**Parsing (Stage 2)**
+- **Own HTML-to-text walker on lxml, not "strip all tags".** 10-Ks are inline XBRL: a hidden
+  `<ix:header>` block holds megabytes of machine data. The walker skips anything with
+  `display:none`, keeps `<ix:nonFraction>` numbers inline, turns table rows into `a | b | c` lines,
+  and drops page numbers and "Table of Contents" links.
+- **Sections by heading, longest candidate wins.** Each Item heading appears in the table of
+  contents and again at the real section. A heading must start a short line ("see Item 1A" mid-sentence
+  doesn't count), and for each Item the candidate producing the longest span is kept, so the table
+  of contents always loses. Sections under 2,000 characters are flagged as short (often
+  "incorporated by reference" to an exhibit) rather than silently accepted.
+- **Chunks of whole blocks with overlap.** About 6,000 characters (~1,500 tokens) per chunk, built
+  from whole paragraphs and table rows, with ~600 characters carried over so a fact on a boundary
+  appears whole in one chunk. Sized in characters: no tokenizer dependency, same result everywhere.
+- **Idempotent by content hash + parser version.** A filing is re-parsed only if its SHA-256 is new
+  or `PARSER_VERSION` changed. Each document's rows are replaced in one transaction.
+
+_Validation and retries, and model choice are added in Stages 3 and 4._
 
 ## Failure modes I found
 
