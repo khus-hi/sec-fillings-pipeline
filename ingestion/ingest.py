@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from ingestion.config import COMPANIES_CSV, get_settings, get_store
-from ingestion.edgar_client import EdgarClient, Filing
+from ingestion.edgar_client import EdgarClient, Filing, pad_cik
 from ingestion.manifest import Manifest, sha256_hex, utcnow
 from ingestion.storage import RawStore, raw_key
 
@@ -41,6 +41,11 @@ CONTENT_TYPES = {
 class Company:
     ticker: str
     sector: str
+    # Optional CIK override from companies.csv. Needed when a ticker has moved to a
+    # new legal entity: e.g. after a holding-company reorganisation EDGAR maps XOM to
+    # the new holdco, whose filing history starts empty, while past 10-Ks stay under
+    # the old CIK. Listing both CIKs gives the full history.
+    ciks: tuple[str, ...] = ()
 
 
 @dataclass
@@ -61,7 +66,12 @@ class RunStats:
 def load_companies(path: Path = COMPANIES_CSV, tickers: list[str] | None = None) -> list[Company]:
     with path.open(newline="") as fh:
         companies = [
-            Company(r["ticker"].strip().upper(), r["sector"].strip()) for r in csv.DictReader(fh)
+            Company(
+                r["ticker"].strip().upper(),
+                r["sector"].strip(),
+                tuple(pad_cik(c) for c in (r.get("ciks") or "").split(";") if c.strip()),
+            )
+            for r in csv.DictReader(fh)
         ]
     if tickers:
         wanted = {t.upper() for t in tickers}
@@ -131,6 +141,16 @@ def ingest_filing(
     return len(body)
 
 
+def list_company_filings(client: EdgarClient, ciks: tuple[str, ...], limit: int) -> list[Filing]:
+    """Newest `limit` 10-Ks across one or more CIKs for the same company."""
+    by_accession: dict[str, Filing] = {}
+    for cik in ciks:
+        for filing in client.list_filings(cik, form="10-K", limit=limit):
+            by_accession[filing.accession_number] = filing
+    newest = sorted(by_accession.values(), key=lambda f: f.filing_date, reverse=True)
+    return newest[:limit]
+
+
 def run(
     companies: list[Company],
     client: EdgarClient,
@@ -147,18 +167,30 @@ def run(
     ticker_map = client.ticker_to_cik()
 
     for company in companies:
-        cik = ticker_map.get(company.ticker)
-        if cik is None:
+        ciks = company.ciks or (
+            (ticker_map[company.ticker],) if company.ticker in ticker_map else ()
+        )
+        if not ciks:
             stats.failed += 1
             stats.errors.append(f"{company.ticker}: ticker not found in EDGAR")
             log.error("ticker %s not found in EDGAR's ticker list", company.ticker)
             continue
         try:
-            filings = client.list_filings(cik, form="10-K", limit=per_company)
+            filings = list_company_filings(client, ciks, per_company)
         except Exception as err:  # one bad company must not stop the other 49
             stats.failed += 1
             stats.errors.append(f"{company.ticker}: listing failed: {err}")
             log.exception("could not list filings for %s", company.ticker)
+            continue
+        if not filings:
+            # A company we expect to file 10-Ks returned none. Without this check the
+            # run would look green while silently missing a company.
+            stats.failed += 1
+            stats.errors.append(
+                f"{company.ticker}: 0 10-K filings under CIK {', '.join(ciks)}. The ticker may "
+                "have moved to a new entity; pin the old CIK in companies.csv (ciks column)"
+            )
+            log.error("%s returned no 10-K filings (CIK %s)", company.ticker, ", ".join(ciks))
             continue
         stats.listed += len(filings)
 

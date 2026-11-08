@@ -94,7 +94,9 @@ _Chunking, validation and retries, and model choice are added in Stages 2 to 4._
 
 ## Failure modes I found
 
-_Filled in from real runs._
+| Stage | What happened | Fix |
+|---|---|---|
+| 1 | The first full run stored 147 of 150 filings with **no error**. ExxonMobil's ticker (XOM) had moved to a new holding company (EDGAR CIK 2115436, registered with an 8-K12B), whose filing history has no 10-K yet. The 10-K history stays under the old Exxon Mobil Corp CIK (34088). | A company that returns 0 filings now counts as a failure (the run exits non-zero). `companies.csv` can pin several CIKs per ticker, and filings from all of them are merged. |
 
 ## What I'd do at 10x scale
 
