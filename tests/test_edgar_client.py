@@ -23,7 +23,11 @@ def test_user_agent_header_is_sent(edgar, client):
 
 
 def test_ticker_to_cik(edgar, client):
-    assert client.ticker_to_cik() == {"AAPL": "0000320193", "JPM": "0000019617"}
+    assert client.ticker_to_cik() == {
+        "AAPL": "0000320193",
+        "JPM": "0000019617",
+        "XOM": "0002115436",
+    }
 
 
 def test_list_filings_keeps_only_exact_form_newest_first(edgar, client):

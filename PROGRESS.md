@@ -11,7 +11,7 @@ Model pick depends on RAM: 8 GB → `qwen3:4b`, 16 GB → `qwen3:8b` (default), 
 
 | # | Stage | Status |
 |---|---|---|
-| 1 | Ingestion: EDGAR → local S3 (SeaweedFS) raw zone, hashed manifest | **Built and tested offline; waiting for owner's real run** |
+| 1 | Ingestion: EDGAR → local S3 (SeaweedFS) raw zone, hashed manifest | **Built; real run done on owner's Mac; waiting on interview answers** |
 | 2 | Parsing: sections + chunking | not started |
 | 3 | Extraction schema (Pydantic) | not started |
 | 4 | LLM extraction, retries, quarantine | not started |
@@ -30,9 +30,9 @@ Model pick depends on RAM: 8 GB → `qwen3:4b`, 16 GB → `qwen3:8b` (default), 
 - `ingestion/manifest.py`: DuckDB tables `meta.documents` (one row per filing, PK accession,
   sha256) and `meta.ingest_runs` (one row per run with counts and timing).
 - `ingestion/ingest.py`: the CLI. `--tickers`, `--per-company`, `--limit`. Exit code 1 if anything failed.
-- `ingestion/companies.csv`: 50 tickers, 5 per sector across 10 sectors.
+- `ingestion/companies.csv`: 50 tickers across 11 sectors (5 each, except Materials 3 and Real Estate 2). Optional `ciks` column pins CIKs (XOM: new holdco + old entity).
 - `docker-compose.yml`: SeaweedFS S3 server on :8333, file browser on :8888.
-- `tests/`: 30 offline tests (fake EDGAR via `responses`, fake S3 via `moto`).
+- `tests/`: 35 offline tests (fake EDGAR via `responses`, fake S3 via `moto`).
 
 ## Decisions and why
 
@@ -50,7 +50,14 @@ Model pick depends on RAM: 8 GB → `qwen3:4b`, 16 GB → `qwen3:8b` (default), 
 
 ## Real-run metrics
 
-_None yet. Only numbers from the owner's real runs go here (query `meta.ingest_runs`)._
+Only numbers from the owner's real runs go here (source: `meta.ingest_runs`).
+
+| Date | Run | Result |
+|---|---|---|
+| 2026-11-08 | first full ingest (MacBook Air, home network) | 147 10-Ks, 797.0 MB in 78.35 s (about 1.9 docs/s), 0 failed |
+| 2026-11-08 | immediate re-run | 0 downloaded, 147 skipped, 18.39 s (index lookups only) |
+
+Gap: 147, not 150, because XOM returned 0 filings (see README "Failure modes"). Fixed by pinning CIKs. Re-run to fetch XOM's 3.
 
 ## Next step
 

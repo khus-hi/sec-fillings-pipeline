@@ -131,6 +131,28 @@ def test_record_twice_updates_instead_of_duplicating(manifest):
     assert manifest.con.execute("SELECT sha256 FROM meta.documents").fetchone()[0] == "def"
 
 
+def test_company_with_zero_filings_is_a_failure_not_silence(edgar, client, manifest, tmp_path):
+    """The real XOM case: the ticker now maps to a new holdco with no 10-Ks yet."""
+    stats = run([Company("XOM", "Energy")], client, LocalStore(tmp_path), manifest, per_company=2)
+    assert (stats.listed, stats.downloaded, stats.failed) == (0, 0, 1)
+    assert "0 10-K filings" in stats.errors[0] and "0002115436" in stats.errors[0]
+
+
+def test_pinned_ciks_merge_predecessor_history(edgar, client, manifest, tmp_path):
+    xom = Company("XOM", "Energy", ("0002115436", "0000034088"))
+    stats = run([xom], client, LocalStore(tmp_path), manifest, per_company=3)
+    assert (stats.listed, stats.downloaded, stats.failed) == (2, 2, 0)
+    tickers = manifest.con.execute("SELECT DISTINCT ticker, cik FROM meta.documents").fetchall()
+    assert tickers == [("XOM", "0000034088")]  # filed by the old entity, labelled by ticker
+
+
+def test_companies_csv_pins_xom_ciks():
+    xom = next(c for c in load_companies() if c.ticker == "XOM")
+    assert xom.ciks == ("0002115436", "0000034088")
+    aapl = next(c for c in load_companies() if c.ticker == "AAPL")
+    assert aapl.ciks == ()  # no override: resolved from the ticker list
+
+
 def test_companies_csv_has_50_unique_tickers():
     companies = load_companies()
     assert len(companies) == 50

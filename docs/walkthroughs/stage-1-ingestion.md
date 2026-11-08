@@ -71,8 +71,12 @@ Key choices:
 - One JSON log line per stored document: easy to grep now, easy to load into a table later.
 
 ### `ingestion/companies.csv`
-50 tickers, 5 from each of 10 sectors. The sector column feeds the Stage 6 mart (risk categories
-by industry). EDGAR's SIC code is stored too, as a second, official industry label.
+50 tickers across 11 sectors (5 each, except Materials 3 and Real Estate 2). The sector column feeds
+the Stage 6 mart (risk categories by industry). EDGAR's SIC code is stored too, as a second, official
+industry label. The optional `ciks` column pins one or more CIKs for a ticker. It exists because of a
+real failure: ExxonMobil's ticker moved to a new holding company with no 10-K history yet, so the
+first full run silently skipped it. Now a company with 0 filings fails the run, and XOM lists both
+the new and the old CIK.
 
 ### `docker-compose.yml`
 Runs SeaweedFS, an open-source S3-compatible server. boto3 talks to it exactly like AWS because

@@ -13,6 +13,8 @@ UA = "Test Runner test@example.com"
 TICKERS = {
     "0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."},
     "1": {"cik_str": 19617, "ticker": "JPM", "title": "JPMorgan Chase & Co."},
+    # After a holding-company reorganisation, the ticker points at the new entity.
+    "2": {"cik_str": 2115436, "ticker": "XOM", "title": "ExxonMobil Holdings Corp"},
 }
 
 
@@ -72,6 +74,35 @@ JPM_HISTORY = _block(
 )
 
 
+# The new holdco: no 10-K yet, just the successor-registration 8-K12B.
+XOM_HOLDCO_SUBMISSIONS = {
+    "cik": "2115436",
+    "name": "ExxonMobil Holdings Corp",
+    "sic": "2911",
+    "sicDescription": "Petroleum Refining",
+    "filings": {
+        "recent": _block([("8-K12B", "0002115436-26-000001", "2026-06-01", "", "8k12b.htm")]),
+        "files": [],
+    },
+}
+# The predecessor entity still holds the 10-K history.
+XOM_OLD_SUBMISSIONS = {
+    "cik": "34088",
+    "name": "EXXON MOBIL CORP",
+    "sic": "2911",
+    "sicDescription": "Petroleum Refining",
+    "filings": {
+        "recent": _block(
+            [
+                ("10-K", "0000034088-26-000010", "2026-02-18", "2025-12-31", "xom-20251231.htm"),
+                ("10-K", "0000034088-25-000010", "2025-02-19", "2024-12-31", "xom-20241231.htm"),
+            ]
+        ),
+        "files": [],
+    },
+}
+
+
 def doc_url(cik: int, accession: str, document: str) -> str:
     return ARCHIVES_URL.format(
         cik_int=cik, acc_nodash=accession.replace("-", ""), document=document
@@ -88,7 +119,10 @@ def edgar():
         mock.get(
             SUBMISSIONS_URL.format(name="CIK0000019617-submissions-001.json"), json=JPM_HISTORY
         )
+        mock.get(SUBMISSIONS_URL.format(name="CIK0002115436.json"), json=XOM_HOLDCO_SUBMISSIONS)
+        mock.get(SUBMISSIONS_URL.format(name="CIK0000034088.json"), json=XOM_OLD_SUBMISSIONS)
         for cik, block in [
+            (34088, XOM_OLD_SUBMISSIONS["filings"]["recent"]),
             (320193, AAPL_SUBMISSIONS["filings"]["recent"]),
             (19617, JPM_SUBMISSIONS["filings"]["recent"]),
             (19617, JPM_HISTORY),
