@@ -1,0 +1,25 @@
+# Secrets: never commit
+.env
+
+# Local data: raw filings, DuckDB warehouse, MinIO volume
+data/
+*.duckdb
+*.duckdb.wal
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# dbt
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
