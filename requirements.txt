@@ -4,3 +4,4 @@ duckdb==2.0.0
 python-dotenv>=1.0
 requests>=2.31
 lxml>=5.2
+pydantic>=2.9,<3
