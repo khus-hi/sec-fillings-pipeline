@@ -1,17 +1,18 @@
 # Progress
 
-Read this first in a new chat. It records what is done, the decisions behind it, and what's next.
+Project log: what is built, the decisions behind it, measured results, and what's next.
 
-## Owner's machine
+## Reference machine
 
-_Not confirmed yet._ OS: ? | RAM: ? | GPU: ? | Python: ? | Docker: ?
-Model pick depends on RAM: 8 GB → `qwen3:4b`, 16 GB → `qwen3:8b` (default), 32 GB+ → `qwen3:14b`.
+All measured numbers come from one laptop: MacBook Air (Apple Silicon, 16 GB RAM, no discrete GPU,
+fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (chosen to fit
+16 GB; 8 GB machines would use `qwen3:4b`, 32 GB+ `qwen3:14b`).
 
 ## Stages
 
 | # | Stage | Status |
 |---|---|---|
-| 1 | Ingestion: EDGAR → local S3 (SeaweedFS) raw zone, hashed manifest | **Built; real run done on owner's Mac; waiting on interview answers** |
+| 1 | Ingestion: EDGAR → local S3 (SeaweedFS) raw zone, hashed manifest | **Done** |
 | 2 | Parsing: sections + chunking | not started |
 | 3 | Extraction schema (Pydantic) | not started |
 | 4 | LLM extraction, retries, quarantine | not started |
@@ -50,16 +51,17 @@ Model pick depends on RAM: 8 GB → `qwen3:4b`, 16 GB → `qwen3:8b` (default), 
 
 ## Real-run metrics
 
-Only numbers from the owner's real runs go here (source: `meta.ingest_runs`).
+Only numbers from real runs go here (source: `meta.ingest_runs`).
 
 | Date | Run | Result |
 |---|---|---|
 | 2026-11-08 | first full ingest (MacBook Air, home network) | 147 10-Ks, 797.0 MB in 78.35 s (about 1.9 docs/s), 0 failed |
 | 2026-11-08 | immediate re-run | 0 downloaded, 147 skipped, 18.39 s (index lookups only) |
 
-Gap: 147, not 150, because XOM returned 0 filings (see README "Failure modes"). Fixed by pinning CIKs. Re-run to fetch XOM's 3.
+| 2026-11-08 | re-run after the XOM fix | 3 downloaded, 147 skipped, 0 failed, 20.13 s; **150 / 150 filings** |
+
+The first run's gap (147, not 150) was XOM returning 0 filings; see README "Failure modes I found".
 
 ## Next step
 
-Owner runs Stage 1 on their machine (see README Quick start), confirms, answers the interview
-questions, then says "go" for Stage 2 (parsing).
+Stage 2: parsing (HTML to text, section extraction for Items 1, 1A, 7 and 8, chunking).
