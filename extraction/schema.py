@@ -127,6 +127,10 @@ class Unit(StrEnum):
     BILLIONS = "billions"
 
 
+# The highest net margins in this universe are around 55% (Visa, NVIDIA). Above 70%, the
+# "revenue" is almost certainly a subtotal or the same row as net income.
+MAX_NET_MARGIN = 0.7
+
 SCALE = {Unit.UNITS: 1, Unit.THOUSANDS: 10**3, Unit.MILLIONS: 10**6, Unit.BILLIONS: 10**9}
 
 
@@ -188,10 +192,17 @@ class FinancialsExtraction(BaseModel):
         # Seen on the first full run (XOM): the same figure returned for both fields. The
         # error goes back to the model, which then gets a second chance at the right rows.
         rev, ni = self.revenue, self.net_income
-        if rev and ni and rev.in_usd() is not None and rev.in_usd() == ni.in_usd():
+        if not (rev and ni) or rev.in_usd() is None or ni.in_usd() is None:
+            return self
+        if rev.in_usd() == ni.in_usd():
             raise ValueError(
                 "revenue and net_income are the same amount: revenue is the top line "
                 "(total revenues or sales), net income is the bottom line"
+            )
+        if abs(ni.in_usd()) > MAX_NET_MARGIN * rev.in_usd():
+            raise ValueError(
+                f"net_income is {abs(ni.in_usd()) / rev.in_usd():.0%} of revenue, which is "
+                "implausible: revenue is probably a subtotal, a segment or the wrong unit"
             )
         return self
 
@@ -319,9 +330,6 @@ class FilingRecord(BaseModel):
 # Every company in ingestion/companies.csv is a large cap with well over 1,000 staff, so a
 # smaller number almost always means "164" read from "164 thousand". Revisit for small caps.
 MIN_PLAUSIBLE_EMPLOYEES = 1_000
-# The highest net margins in this universe are around 55% (Visa, NVIDIA). Above 70%, the
-# "revenue" is almost certainly a subtotal or the same row as net income.
-MAX_NET_MARGIN = 0.7
 
 
 def sanity_warnings(record: FilingRecord) -> list[str]:

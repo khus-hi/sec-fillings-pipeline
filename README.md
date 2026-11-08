@@ -176,8 +176,10 @@ _Filled in at Stage 5 from a real run. No numbers are written here until they ar
 - **Server down ≠ bad document.** If Ollama is unreachable the run stops (exit 2) instead of
   quarantining 150 filings; any other error quarantines that one task and the run continues.
 - **Idempotent and resumable.** A task is skipped when it's already valid for the same content
-  hash, model and `EXTRACTOR_VERSION` (schema + prompt version). Changing a prompt means bumping
-  `PROMPT_VERSION`; switching model keeps both results side by side (for Stage 8).
+  hash, model and *task* version (schema version + that task's prompt version), and the stored
+  answer still passes today's validators. Bumping one prompt re-runs only that task (the
+  financials fix re-ran 150 calls, not 450); a stricter rule re-runs only the answers it now
+  rejects; switching model keeps both results side by side (for Stage 8).
 - **Per-task log line and run table.** Model, latency, prompt/answer tokens, cost, attempts,
   warnings and errors per task (JSON logs + `extracted.task_results`), totals per run in
   `meta.extract_runs`.
@@ -190,7 +192,7 @@ _Filled in at Stage 5 from a real run. No numbers are written here until they ar
 
 | 2 | On the first real parse, 39 of 150 Item 8 sections and 24 Item 7 sections were under 2,000 characters. Three layouts caused it: (1) "Item 8" is a one-line pointer and the statements sit in F-pages after Item 15 (NFLX, NVDA, ORCL, PEP, DIS, AMT, PLD); (2) "Item 7" says "incorporated by reference" and MD&A appears later under its own title (JPM, CVX, XOM, AEP); (3) GE, HON and MCD use an annual-report layout: the Item headings exist only in a cross-reference index at the end, and the body uses run-in headings in a different order (GE puts MD&A before Risk Factors). | Title-based fallback for short sections, ending at the next heading or title of any other Item (except "Properties" and "Legal Proceedings", which recur inside the notes). Short sections fell from 9 / 9 / 24 / 39 to 1 / 0 / 3 / 0 (Items 1 / 1A / 7 / 8). A `found_by` column makes the fallback auditable. |
 
-| 4 | The first full extraction run reported 441 / 441 tasks valid and 0 quarantined, yet XOM's FY2023 record had revenue equal to net income ($36.01B): a schema-valid answer read from the wrong row. The sanity rule "net income larger than revenue" missed equality. | A validator rejects identical revenue and net income, which sends the error back to the model for a retry. Sanity rule widened to net margin above 70%. The report re-checks stored records in SQL, so older records are covered without re-running. Lesson: validation proves shape, not truth; Stage 5 measures truth. |
+| 4 | The first full extraction run reported 441 / 441 tasks valid and 0 quarantined, yet XOM's FY2023 record had revenue equal to net income ($36.01B): a schema-valid answer read from the wrong row. The sanity rule "net income larger than revenue" missed equality. | Validators reject identical revenue and net income and any net margin above 70%, so the error goes back to the model for a retry. The financials prompt now lists revenue labels ("Sales to customers", "Net sales") and says to use the parent company in combined filings. Cache keys became per task, so only the financials were re-extracted. The report re-checks stored records in SQL, so older records are covered without re-running. Lesson: validation proves shape, not truth; Stage 5 measures truth. |
 
 ## What I'd do at 10x scale
 

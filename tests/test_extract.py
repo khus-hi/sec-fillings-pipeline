@@ -131,10 +131,29 @@ def test_rerun_skips_everything_and_force_redoes_it(con):
     assert _one(con, "SELECT count(*) FROM extracted.filings")[0] == 1
 
 
-def test_new_extractor_version_reextracts(con, monkeypatch):
+def test_new_prompt_version_reextracts_only_that_task(con, monkeypatch):
     extract.run(con, FakeLLM())
-    monkeypatch.setattr(extract, "EXTRACTOR_VERSION", "next")
-    assert extract.run(con, FakeLLM())["tasks_ok"] == 3
+    monkeypatch.setitem(extract.PROMPT_VERSIONS, "financials", "next")
+    llm = FakeLLM()
+    stats = extract.run(con, llm)
+    assert (stats["tasks_ok"], stats["tasks_skipped"], stats["records"]) == (1, 2, 1)
+    assert [t for t, _ in llm.calls] == ["financials"]
+    version = _one(con, "SELECT extractor_version FROM extracted.filings")[0]
+    assert "financials=s" in version and "-pnext" in version
+
+
+def test_stored_answer_rejected_by_a_newer_rule_is_extracted_again(con):
+    extract.run(con, FakeLLM())
+    same = {"value": 36010, "unit": "millions", "quote": "Net income | $ | 93,736"}
+    con.execute(  # what a run before the identical-amounts rule could have stored
+        "UPDATE extracted.task_results SET result_json = ? WHERE task = 'financials'",
+        [json.dumps({"revenue": same, "net_income": same})],
+    )
+    llm = FakeLLM()
+    stats = extract.run(con, llm)
+    assert (stats["documents"], stats["tasks_ok"], stats["tasks_skipped"]) == (1, 1, 2)
+    assert [t for t, _ in llm.calls] == ["financials"]
+    assert _one(con, "SELECT revenue_usd FROM extracted.filings")[0] == 391_035_000_000
 
 
 def test_ungrounded_values_are_flagged(con):

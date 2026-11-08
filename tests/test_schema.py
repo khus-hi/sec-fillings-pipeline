@@ -188,13 +188,13 @@ def test_clean_record_has_no_warnings():
 
 
 def test_sanity_warnings_catch_unit_mistakes():
-    wrong_unit = FinancialsExtraction(
-        revenue={"value": 391035, "unit": "units", "quote": "391,035"},
-        net_income={"value": 93736, "unit": "millions", "quote": "93,736"},
+    wrong_unit = _stored_before_margin_rule(
+        ReportedAmount(value=391035, unit="units", quote="391,035"),
+        ReportedAmount(value=93736, unit="millions", quote="93,736"),
     )
-    warnings = sanity_warnings(
-        _record(financials=wrong_unit, employees={"employee_count": 164, "quote": None})
-    )
+    record = _record(employees={"employee_count": 164, "quote": None})
+    record.financials = wrong_unit  # assignment isn't re-validated, like an old stored row
+    warnings = sanity_warnings(record)
     assert any("under $1M" in w for w in warnings)
     assert any("of revenue: probably the wrong line item" in w for w in warnings)
     assert any("employee count 164" in w for w in warnings)
@@ -227,11 +227,26 @@ def test_same_amount_for_revenue_and_net_income_is_rejected():
         FinancialsExtraction(revenue=same, net_income=same)
 
 
-def test_implausible_net_margin_is_flagged():
-    fin = FinancialsExtraction(
-        revenue={"value": 100, "unit": "billions", "quote": "Total revenues 100"},
-        net_income={"value": 80, "unit": "billions", "quote": "Net income 80"},
+def test_implausible_net_margin_is_rejected_so_the_model_retries():
+    with pytest.raises(ValidationError, match="80% of revenue"):
+        FinancialsExtraction(
+            revenue={"value": 100, "unit": "billions", "quote": "Total revenues 100"},
+            net_income={"value": 80, "unit": "billions", "quote": "Net income 80"},
+        )
+
+
+def _stored_before_margin_rule(revenue, net_income) -> FinancialsExtraction:
+    """A record extracted before the margin rule existed (validation skipped)."""
+    return FinancialsExtraction.model_construct(revenue=revenue, net_income=net_income)
+
+
+def test_sanity_warning_still_covers_records_stored_before_the_rule():
+    fin = _stored_before_margin_rule(
+        ReportedAmount(value=100, unit="billions", quote="Total revenues 100"),
+        ReportedAmount(value=80, unit="billions", quote="Net income 80"),
     )
-    assert sanity_warnings(_record(financials=fin)) == [
+    record = _record()
+    record.financials = fin
+    assert sanity_warnings(record) == [
         "net income is 80% of revenue: probably the wrong line item or unit"
     ]
