@@ -36,7 +36,7 @@ from pydantic import (
     model_validator,
 )
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"  # 2: quote fields required
 
 # ---------- Risk categories ----------
 
@@ -108,12 +108,14 @@ def _normalize_category(value: Any) -> Any:
 # ---------- Building blocks ----------
 
 _Strict = ConfigDict(extra="forbid", str_strip_whitespace=True)
+# Required (the key must be present) but nullable. An optional field is simply skipped by
+# constrained decoding, which is what happened on the first real run: every quote was null.
 Quote = Annotated[
     str | None,
     Field(
-        default=None,
         max_length=500,
-        description="The sentence or table row the value was read from, copied verbatim.",
+        description="The sentence or table row the value was read from, copied verbatim "
+        "from the excerpt. null only when the value itself is null.",
     ),
 ]
 

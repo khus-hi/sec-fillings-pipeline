@@ -3,7 +3,7 @@
 Turns unstructured 10-K filings from SEC EDGAR into reliable, queryable tables using a local
 open-source LLM, with validation, retries, a quarantine table and a measured evaluation.
 
-**Status:** Stages 1 (ingestion), 2 (parsing) and 3 (extraction schema) built. See [PROGRESS.md](PROGRESS.md).
+**Status:** Stages 1-3 done (ingestion, parsing, extraction schema); Stage 4 (LLM extraction) built. See [PROGRESS.md](PROGRESS.md).
 
 ## Architecture
 
@@ -56,10 +56,13 @@ Run these one at a time. (macOS ships `python3`, not `python`; inside the activa
    python -m parsing.parse
    python -m parsing.report
    ```
-6. Check the local model can fill each extraction schema (needs Ollama running with `qwen3:8b`):
+6. Extract with the local model (needs the Ollama app running and `ollama pull qwen3:8b`).
+   Try a few filings first; the full run takes a while on a laptop and can be stopped and
+   resumed at any time (finished tasks are skipped):
    ```bash
-   python -m extraction.schema
-   python -m extraction.try_schema AAPL
+   python -m extraction.extract --limit 3
+   python -m extraction.report
+   python -m extraction.extract
    ```
 
 ## Repository layout
@@ -158,7 +161,26 @@ _Filled in at Stage 5 from a real run. No numbers are written here until they ar
 - **Flat JSON schema for constrained decoding.** `$ref`s are inlined before the schema is passed
   to Ollama's `format=`, with field descriptions kept, so the schema doubles as instructions.
 
-_Retries, quarantine and model choice are added in Stage 4._
+**LLM extraction (Stage 4)**
+- **Each task picks its own excerpt.** A first test sent the first chunk mentioning "employees"
+  and got the wrong paragraph (JPM: "not found"). Now: employees = lines pairing an employee
+  word with a number, plus the Human Capital paragraph; financials = the Item 8 chunk scoring
+  highest on income-statement signals (Item 7 as fallback); risk factors = the risk *headings*
+  from all of Item 1A, so the model sees the whole list instead of the first page.
+- **Retry with the validation errors, then quarantine.** An invalid answer is sent back with
+  Pydantic's error list ("quote: Field required") and the model corrects it, up to 3 attempts.
+  After that the task goes to `extracted.quarantine` with the reason and the last raw output.
+  Nothing is silently dropped, and a later run retries it.
+- **Grounding checks.** Every extracted number and quote is searched for in the excerpt the model
+  saw. A value that isn't there was not read from the text, so it's flagged as a warning.
+- **Server down ≠ bad document.** If Ollama is unreachable the run stops (exit 2) instead of
+  quarantining 150 filings; any other error quarantines that one task and the run continues.
+- **Idempotent and resumable.** A task is skipped when it's already valid for the same content
+  hash, model and `EXTRACTOR_VERSION` (schema + prompt version). Changing a prompt means bumping
+  `PROMPT_VERSION`; switching model keeps both results side by side (for Stage 8).
+- **Per-task log line and run table.** Model, latency, prompt/answer tokens, cost, attempts,
+  warnings and errors per task (JSON logs + `extracted.task_results`), totals per run in
+  `meta.extract_runs`.
 
 ## Failure modes I found
 
