@@ -10,7 +10,7 @@ open-source LLM, with validation, retries, a quarantine table and a measured eva
 ```mermaid
 flowchart LR
     AF{{Airflow DAG}} -.orchestrates.-> I
-    E[SEC EDGAR API] -->|ingestion/ingest.py<br/>rate limited, User-Agent| I[Raw zone<br/>MinIO / S3<br/>raw/edgar/10-K/filing_date=YYYY-MM-DD/]
+    E[SEC EDGAR API] -->|ingestion/ingest.py<br/>rate limited, User-Agent| I[Raw zone<br/>SeaweedFS / S3<br/>raw/edgar/10-K/filing_date=YYYY-MM-DD/]
     I -->|sha256 + accession| M[(meta.documents<br/>manifest)]
     I -->|parsing/| P[Sections + chunks<br/>Item 1A, Item 7]
     P -->|extraction/<br/>Ollama, JSON schema| X{Pydantic<br/>validation}
@@ -27,16 +27,30 @@ Boxes after the raw zone are planned and get built stage by stage.
 
 ## Quick start (Stage 1)
 
-```bash
-cp .env.example .env                     # then set SEC_USER_AGENT to your name + email
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements-dev.txt
-docker compose up -d                     # MinIO on :9000, console on :9001
-pytest -q                                # offline tests
-python -m ingestion.ingest --tickers AAPL MSFT --per-company 1   # smoke test
-python -m ingestion.ingest               # all 50 companies, 3 years each
-python -m ingestion.summary
-```
+Run these one at a time. (macOS ships `python3`, not `python`; inside the activated venv both work.)
+
+1. Create `.env` and put your name and email in `SEC_USER_AGENT`:
+   ```bash
+   cp .env.example .env
+   ```
+2. Install:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements-dev.txt
+   pytest -q
+   ```
+3. Start the local S3 server (file browser at http://localhost:8888):
+   ```bash
+   docker compose up -d
+   ```
+4. Ingest, then run again to prove idempotency (the second run downloads 0):
+   ```bash
+   python -m ingestion.ingest --tickers AAPL JPM --per-company 1
+   python -m ingestion.ingest
+   python -m ingestion.ingest
+   python -m ingestion.summary
+   ```
 
 ## Repository layout
 

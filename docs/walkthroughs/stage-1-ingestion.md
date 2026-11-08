@@ -3,7 +3,7 @@
 ## What this stage builds and why
 
 Stage 1 downloads the newest three 10-K filings for 50 companies from SEC EDGAR and stores the
-raw HTML in a MinIO bucket (S3 on your laptop), in folders named by filing date. Every document is
+raw HTML in a local S3 bucket (SeaweedFS, running in Docker), in folders named by filing date. Every document is
 recorded in a manifest table with its SHA-256 hash, so running the job again downloads nothing it
 already has. This matters because everything downstream (parsing, LLM calls, evaluation) is slow or
 costly, and a pipeline you can re-run safely is one you can schedule, debug and trust. The raw zone
@@ -16,7 +16,7 @@ going back to SEC.
 Reads every setting from `.env` into a frozen dataclass. Same pattern as Project 1.
 - `load_dotenv(REPO_ROOT / ".env")` loads the file from the repo root no matter where you run from.
 - `get_store()` returns `S3Store` or `LocalStore` depending on `STORAGE_BACKEND`. The rest of the
-  code never knows which one it has. **Why:** you can test against a folder and run against MinIO
+  code never knows which one it has. **Why:** you can test against a folder and run against SeaweedFS
   or AWS with no code change.
 
 ### `ingestion/edgar_client.py`
@@ -75,8 +75,14 @@ Key choices:
 by industry). EDGAR's SIC code is stored too, as a second, official industry label.
 
 ### `docker-compose.yml`
-Runs MinIO (an S3-compatible server) plus a one-shot container that creates the `sec-raw` bucket.
-boto3 talks to it exactly like AWS because `.env` sets `S3_ENDPOINT_URL=http://localhost:9000`.
+Runs SeaweedFS, an open-source S3-compatible server. boto3 talks to it exactly like AWS because
+`.env` sets `S3_ENDPOINT_URL=http://localhost:8333`. `S3Store.from_settings` creates the `sec-raw`
+bucket on first use when an endpoint URL is set, so there is no manual setup step.
+
+**Why not MinIO?** That was the first choice, but MinIO stopped publishing free Docker images and
+`docker pull minio/minio` now fails. Because all storage code sits behind one small interface,
+swapping the server was a docker-compose change plus one `.env` line, with no pipeline code
+changed. That is a good interview story about why the abstraction exists.
 
 ### `tests/`
 30 tests, all offline. `responses` fakes EDGAR's HTTP answers and `moto` fakes S3, so CI needs no

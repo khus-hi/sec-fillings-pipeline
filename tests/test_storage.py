@@ -62,3 +62,26 @@ def test_list_keys_sorted_and_prefixed(store):
 def test_uri(tmp_path, s3_store):
     assert s3_store.uri("raw/x.htm") == "s3://sec-raw/raw/x.htm"
     assert LocalStore(tmp_path).uri("raw/x.htm") == str(tmp_path / "raw/x.htm")
+
+
+def test_ensure_bucket_creates_once():
+    with mock_aws():
+        store = S3Store("new-bucket", boto3.client("s3", region_name="us-east-1"))
+        store.ensure_bucket()
+        store.ensure_bucket()  # already exists: must not fail
+        store.put("raw/a.htm", b"x", "text/html")
+        assert store.list_keys("raw/") == ["raw/a.htm"]
+
+
+def test_from_settings_ensures_bucket_only_for_local_endpoint(monkeypatch):
+    calls = []
+    monkeypatch.setattr(S3Store, "ensure_bucket", lambda self: calls.append(self.bucket))
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "local")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "local")
+
+    local = S3Store.from_settings("sec-raw", "http://localhost:8333", "us-east-1")
+    assert calls == ["sec-raw"]
+    assert local.client.meta.config.s3["addressing_style"] == "path"
+
+    S3Store.from_settings("sec-raw", None, "us-east-1")  # real AWS: never auto-create
+    assert calls == ["sec-raw"]
