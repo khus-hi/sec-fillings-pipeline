@@ -31,6 +31,7 @@ def main() -> None:
                   (SELECT n FROM docs) AS of_docs,
                   round(100.0 * count(*) / (SELECT n FROM docs), 1) AS pct_found,
                   count(*) FILTER (WHERE s.is_short) AS short,
+                  count(*) FILTER (WHERE s.found_by = 'title') AS by_title,
                   median(s.char_count)::BIGINT AS median_chars,
                   max(s.char_count) AS max_chars
            FROM parsed.sections s
@@ -46,13 +47,12 @@ def main() -> None:
            FROM parsed.chunks GROUP BY section ORDER BY section"""
     ).show()
 
-    print("Documents missing or with a short Item 1A / Item 7 / Item 8:")
+    print("Documents with a missing or short section:")
     con.sql(
         """SELECT m.ticker, m.filing_date, p.sections_missing AS missing, p.sections_short AS short
            FROM parsed.documents p JOIN meta.documents m USING (sha256)
            WHERE p.status = 'ok'
-             AND (list_has_any(p.sections_missing, ['item_1a', 'item_7', 'item_8'])
-                  OR list_has_any(p.sections_short, ['item_1a', 'item_7', 'item_8']))
+             AND (len(p.sections_missing) > 0 OR len(p.sections_short) > 0)
            ORDER BY m.ticker, m.filing_date"""
     ).show(max_rows=200)
 

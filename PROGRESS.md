@@ -13,7 +13,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | # | Stage | Status |
 |---|---|---|
 | 1 | Ingestion: EDGAR → local S3 (SeaweedFS) raw zone, hashed manifest | **Done** |
-| 2 | Parsing: sections + chunking | **Built and tested offline; waiting on the first real run** |
+| 2 | Parsing: sections + chunking | **Done** (one known gap: SO Item 7) |
 | 3 | Extraction schema (Pydantic) | not started |
 | 4 | LLM extraction, retries, quarantine | not started |
 | 5 | Evaluation on a 30-document gold set | not started |
@@ -39,11 +39,16 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 
 - `parsing/html_text.py`: iXBRL-aware HTML to text (hidden blocks skipped, tables as `|` rows,
   page furniture dropped).
-- `parsing/sections.py`: finds Items 1, 1A, 7, 8; longest-candidate rule beats the table of contents.
+- `parsing/sections.py`: finds Items 1, 1A, 7, 8; longest-candidate rule beats the table of
+  contents. When an "Item N" section is short, falls back to section titles (MD&A, auditor's
+  report, run-in "RISK FACTORS." headings); `parsed.sections.found_by` records which rule won.
 - `parsing/chunking.py`: block-aligned chunks, 6,000 chars max, 600 chars overlap.
 - `parsing/parse.py`: CLI; writes `parsed.documents`, `parsed.sections`, `parsed.chunks`,
   `meta.parse_runs`; skips by (sha256, PARSER_VERSION); per-document transaction.
-- `parsing/report.py`: coverage per section, short/missing documents, chunk sizes, runs.
+- `parsing/report.py`: coverage per section (incl. how many found by title), short/missing
+  documents, chunk sizes, runs.
+- `parsing/inspect_doc.py`: debugging view for one filing (heading candidates, picked sections,
+  lines that mention an Item or a section title).
 - Tests: synthetic iXBRL 10-K with a table of contents, hidden header, page furniture and
   cross-references; chunking invariants; pipeline idempotency, version bump, rollback.
 
@@ -69,13 +74,30 @@ Only numbers from real runs go here (source: `meta.ingest_runs`).
 |---|---|---|
 | 2026-11-08 | first full ingest (MacBook Air, home network) | 147 10-Ks, 797.0 MB in 78.35 s (about 1.9 docs/s), 0 failed |
 | 2026-11-08 | immediate re-run | 0 downloaded, 147 skipped, 18.39 s (index lookups only) |
-
 | 2026-11-08 | re-run after the XOM fix | 3 downloaded, 147 skipped, 0 failed, 20.13 s; **150 / 150 filings** |
 
 The first run's gap (147, not 150) was XOM returning 0 filings; see README "Failure modes I found".
 
+Stage 2 (source: `meta.parse_runs`, `python -m parsing.report`):
+
+| Date | Run | Result |
+|---|---|---|
+| 2026-11-08 | parser v1, 150 filings | 150 parsed, 0 failed, 22.65 s (6.62 docs/s), 77.9 M characters of text |
+| 2026-11-08 | parser v1 re-run | 0 parsed, 150 skipped |
+| 2026-11-08 | parser v2 (title fallback) | 150 parsed, 0 failed, 27.23 s (5.51 docs/s); 12,916 chunks, avg 1,327-1,421 tokens, max 1,500 |
+
+Short sections (< 2,000 chars, i.e. probably the wrong text), out of 150 filings:
+
+| Section | v1 | v2 | v2 found by title |
+|---|---|---|---|
+| Item 1 | 9 | 1 | 8 |
+| Item 1A | 9 | 0 | 9 |
+| Item 7 | 24 | 3 | 21 |
+| Item 8 | 39 | 0 | 39 |
+
+Remaining: SO Item 7 (all 3 years, 1,245 chars) and GE's 2024 Item 1 (37 chars).
+
 ## Next step
 
-Run Stage 2 on the 150 real filings (`python -m parsing.parse`, then `python -m parsing.report`),
-record coverage and throughput here, and fix whatever the report shows as missing or short.
-Then Stage 3: the extraction schema.
+Stage 3: the Pydantic extraction schema (company, CIK, fiscal year, revenue, net income, employee
+count, top risk factors with categories).

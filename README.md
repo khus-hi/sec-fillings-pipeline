@@ -105,6 +105,11 @@ _Filled in at Stage 5 from a real run. No numbers are written here until they ar
   doesn't count), and for each Item the candidate producing the longest span is kept, so the table
   of contents always loses. Sections under 2,000 characters are flagged as short (often
   "incorporated by reference" to an exhibit) rather than silently accepted.
+- **Title fallback for short sections.** When the "Item N" section is short, the parser also looks
+  for the section's title ("Management's Discussion and Analysis", "Report of Independent
+  Registered Public Accounting Firm", run-in headings like "RISK FACTORS. The following ...") and
+  keeps the longer span. Each section records whether it was found by heading or by title, so the
+  fallback's reach is measurable (39 of 150 Item 8 sections).
 - **Chunks of whole blocks with overlap.** About 6,000 characters (~1,500 tokens) per chunk, built
   from whole paragraphs and table rows, with ~600 characters carried over so a fact on a boundary
   appears whole in one chunk. Sized in characters: no tokenizer dependency, same result everywhere.
@@ -118,6 +123,8 @@ _Validation and retries, and model choice are added in Stages 3 and 4._
 | Stage | What happened | Fix |
 |---|---|---|
 | 1 | The first full run stored 147 of 150 filings with **no error**. ExxonMobil's ticker (XOM) had moved to a new holding company (EDGAR CIK 2115436, registered with an 8-K12B), whose filing history has no 10-K yet. The 10-K history stays under the old Exxon Mobil Corp CIK (34088). | A company that returns 0 filings now counts as a failure (the run exits non-zero). `companies.csv` can pin several CIKs per ticker, and filings from all of them are merged. |
+
+| 2 | On the first real parse, 39 of 150 Item 8 sections and 24 Item 7 sections were under 2,000 characters. Three layouts caused it: (1) "Item 8" is a one-line pointer and the statements sit in F-pages after Item 15 (NFLX, NVDA, ORCL, PEP, DIS, AMT, PLD); (2) "Item 7" says "incorporated by reference" and MD&A appears later under its own title (JPM, CVX, XOM, AEP); (3) GE, HON and MCD use an annual-report layout: the Item headings exist only in a cross-reference index at the end, and the body uses run-in headings in a different order (GE puts MD&A before Risk Factors). | Title-based fallback for short sections, ending at the next heading or title of any other Item (except "Properties" and "Legal Proceedings", which recur inside the notes). Short sections fell from 9 / 9 / 24 / 39 to 1 / 0 / 3 / 0 (Items 1 / 1A / 7 / 8). A `found_by` column makes the fallback auditable. |
 
 ## What I'd do at 10x scale
 
