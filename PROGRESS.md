@@ -13,7 +13,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | # | Stage | Status |
 |---|---|---|
 | 1 | Ingestion: EDGAR → local S3 (SeaweedFS) raw zone, hashed manifest | **Done** |
-| 2 | Parsing: sections + chunking | not started |
+| 2 | Parsing: sections + chunking | **Built and tested offline; waiting on the first real run** |
 | 3 | Extraction schema (Pydantic) | not started |
 | 4 | LLM extraction, retries, quarantine | not started |
 | 5 | Evaluation on a 30-document gold set | not started |
@@ -34,6 +34,18 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 - `ingestion/companies.csv`: 50 tickers across 11 sectors (5 each, except Materials 3 and Real Estate 2). Optional `ciks` column pins CIKs (XOM: new holdco + old entity).
 - `docker-compose.yml`: SeaweedFS S3 server on :8333, file browser on :8888.
 - `tests/`: 35 offline tests (fake EDGAR via `responses`, fake S3 via `moto`).
+
+## Stage 2: what exists
+
+- `parsing/html_text.py`: iXBRL-aware HTML to text (hidden blocks skipped, tables as `|` rows,
+  page furniture dropped).
+- `parsing/sections.py`: finds Items 1, 1A, 7, 8; longest-candidate rule beats the table of contents.
+- `parsing/chunking.py`: block-aligned chunks, 6,000 chars max, 600 chars overlap.
+- `parsing/parse.py`: CLI; writes `parsed.documents`, `parsed.sections`, `parsed.chunks`,
+  `meta.parse_runs`; skips by (sha256, PARSER_VERSION); per-document transaction.
+- `parsing/report.py`: coverage per section, short/missing documents, chunk sizes, runs.
+- Tests: synthetic iXBRL 10-K with a table of contents, hidden header, page furniture and
+  cross-references; chunking invariants; pipeline idempotency, version bump, rollback.
 
 ## Decisions and why
 
@@ -64,4 +76,6 @@ The first run's gap (147, not 150) was XOM returning 0 filings; see README "Fail
 
 ## Next step
 
-Stage 2: parsing (HTML to text, section extraction for Items 1, 1A, 7 and 8, chunking).
+Run Stage 2 on the 150 real filings (`python -m parsing.parse`, then `python -m parsing.report`),
+record coverage and throughput here, and fix whatever the report shows as missing or short.
+Then Stage 3: the extraction schema.
