@@ -14,7 +14,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 |---|---|---|
 | 1 | Ingestion: EDGAR → local S3 (SeaweedFS) raw zone, hashed manifest | **Done** |
 | 2 | Parsing: sections + chunking | **Done** (one known gap: SO Item 7) |
-| 3 | Extraction schema (Pydantic) | not started |
+| 3 | Extraction schema (Pydantic) | **Built and tested offline; waiting on the local-model check** |
 | 4 | LLM extraction, retries, quarantine | not started |
 | 5 | Evaluation on a 30-document gold set | not started |
 | 6 | DuckDB + dbt staging → marts, tests | not started |
@@ -52,6 +52,18 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 - Tests: synthetic iXBRL 10-K with a table of contents, hidden header, page furniture and
   cross-references; chunking invariants; pipeline idempotency, version bump, rollback.
 
+## Stage 3: what exists
+
+- `extraction/schema.py`: Pydantic models. Three LLM tasks (`FinancialsExtraction`,
+  `EmployeesExtraction`, `RiskFactorsExtraction`), the stored `FilingRecord` (manifest facts +
+  answers + provenance, computed `fiscal_year`, `revenue_usd`, `net_income_usd`), 11 risk
+  categories with definitions, `sanity_warnings()`, and `llm_json_schema()` (flat schema for
+  Ollama). `python -m extraction.schema` prints the schemas.
+- `extraction/try_schema.py`: sends one real chunk per task to the local model, constrained to the
+  schema, and reports validity, latency and tokens.
+- Tests: units and sign rules, explicit nulls, extra keys, category normalisation, list bounds and
+  dedupe, manifest field formats, sanity warnings, schema flattening, Ollama request shape.
+
 ## Decisions and why
 
 | Decision | Why | Alternative rejected |
@@ -64,6 +76,10 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | Exclude 10-K/A | amendments are partial, would double-count a year | include and dedupe later |
 | 3 filings per company default | gives year-over-year view for the Stage 6 mart | 1 (no trend) |
 | SeaweedFS in docker-compose (standalone for now) | S3 API locally at $0; MinIO was the first pick but its Docker images are no longer published (pull fails) | MinIO (unavailable), real S3 (costs, credentials); will fold into Astro's compose in Stage 7 |
+| Manifest facts (CIK, period) never asked of the LLM | can't be hallucinated; fewer tokens | one big "extract everything" schema |
+| Money as value + unit, converted in code | small models mis-scale numbers by 1,000x | ask for dollars directly |
+| One schema per task (financials, employees, risks) | each call fits 8k context with its own section; partial success possible | single schema over the whole filing |
+| Fixed list of 11 risk categories, near-miss aliases, no silent "other" | stable for the by-industry mart; drift stays visible | free-text categories (unaggregatable) |
 | Project 1 patterns reused | `.env` config, store interface, ruff + pytest CI, pinned dev deps | — |
 
 ## Real-run metrics
@@ -99,5 +115,5 @@ Remaining: SO Item 7 (all 3 years, 1,245 chars) and GE's 2024 Item 1 (37 chars).
 
 ## Next step
 
-Stage 3: the Pydantic extraction schema (company, CIK, fiscal year, revenue, net income, employee
-count, top risk factors with categories).
+Run `python -m extraction.try_schema` on a few tickers to confirm the local model fills each schema,
+then Stage 4: the extraction job (prompts, chunk selection, retries, quarantine, per-document logs).

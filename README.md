@@ -3,7 +3,7 @@
 Turns unstructured 10-K filings from SEC EDGAR into reliable, queryable tables using a local
 open-source LLM, with validation, retries, a quarantine table and a measured evaluation.
 
-**Status:** Stages 1 (ingestion) and 2 (parsing) built. See [PROGRESS.md](PROGRESS.md).
+**Status:** Stages 1 (ingestion), 2 (parsing) and 3 (extraction schema) built. See [PROGRESS.md](PROGRESS.md).
 
 ## Architecture
 
@@ -56,6 +56,11 @@ Run these one at a time. (macOS ships `python3`, not `python`; inside the activa
    python -m parsing.parse
    python -m parsing.report
    ```
+6. Check the local model can fill each extraction schema (needs Ollama running with `qwen3:8b`):
+   ```bash
+   python -m extraction.schema
+   python -m extraction.try_schema AAPL
+   ```
 
 ## Repository layout
 
@@ -72,7 +77,30 @@ Run these one at a time. (macOS ships `python3`, not `python`; inside the activa
 
 ## Extraction schema
 
-_Filled in at Stage 3._
+Defined in [`extraction/schema.py`](extraction/schema.py) with Pydantic. The model answers three
+small tasks, each constrained to its own JSON schema; everything else comes from the manifest.
+
+| Field | Type | Source | Rules |
+|---|---|---|---|
+| `cik` | 10-digit string | manifest | zero-padded |
+| `ticker`, `company_name` | string | manifest | |
+| `period_end`, `fiscal_year` | date, int | manifest (`reportDate`) | fiscal year = year the period ends |
+| `revenue` | value + unit (+ quote) | LLM, Item 8 / 7 | value > 0; unit in units / thousands / millions / billions; `revenue_usd` computed in code |
+| `net_income` | value + unit (+ quote) | LLM, Item 8 / 7 | may be negative; `net_income_usd` computed in code |
+| `employee_count` | int (+ quote) | LLM, Item 1 | 1 to 5,000,000 |
+| `risk_factors` | 1-8 × (title, category) | LLM, Item 1A | category from a fixed list of 11; duplicates dropped |
+| `model`, `parser_version`, `schema_version`, `extracted_at` | provenance | pipeline | |
+
+Risk categories: `market_competition`, `macroeconomic`, `regulatory_legal`,
+`operational_supply_chain`, `cybersecurity_technology`, `financial_liquidity_credit`,
+`geopolitical`, `climate_environmental`, `human_capital`, `strategic_reputational`, `other`.
+Each has a one-line definition (`CATEGORY_DESCRIPTIONS`) shared by the prompt and the gold-set
+labelling guide, so the model and the labels use the same rules.
+
+Missing values must be an explicit `null`: a dropped key fails validation, so "not found" is
+always a decision, never an accident. `sanity_warnings()` flags valid-but-suspicious records
+(revenue under $1M or over $2T, net income larger than revenue, fewer than 1,000 employees) for
+review instead of rejecting them.
 
 ## Evaluation results
 
@@ -116,7 +144,21 @@ _Filled in at Stage 5 from a real run. No numbers are written here until they ar
 - **Idempotent by content hash + parser version.** A filing is re-parsed only if its SHA-256 is new
   or `PARSER_VERSION` changed. Each document's rows are replaced in one transaction.
 
-_Validation and retries, and model choice are added in Stages 3 and 4._
+**Extraction schema (Stage 3)**
+- **Don't ask the model what you already know.** CIK, ticker, company and fiscal period come from
+  EDGAR metadata. The model only reads what has to be read, so it can't hallucinate a CIK.
+- **Money as printed, converted in code.** The model copies `391,035` and the table's unit
+  (`millions`); code multiplies. Small models are unreliable at scaling numbers, and a 1,000x error
+  still looks like a plausible number.
+- **Three small schemas, not one big one.** Each task gets only its section's chunks, which keeps
+  a call inside an 8k context on a laptop, and a failure in one task doesn't discard the others.
+- **Strict, but forgiving where it's safe.** Unknown keys and unknown categories fail (so Stage 4
+  can retry with the error message), while harmless near-misses (`"Supply Chain"`, `"CYBER"`) are
+  normalised. Unknown labels are never silently mapped to `other`, which would hide drift.
+- **Flat JSON schema for constrained decoding.** `$ref`s are inlined before the schema is passed
+  to Ollama's `format=`, with field descriptions kept, so the schema doubles as instructions.
+
+_Retries, quarantine and model choice are added in Stage 4._
 
 ## Failure modes I found
 
