@@ -183,6 +183,18 @@ class FinancialsExtraction(BaseModel):
             raise ValueError("revenue must be positive")
         return v
 
+    @model_validator(mode="after")
+    def _distinct_lines(self) -> FinancialsExtraction:
+        # Seen on the first full run (XOM): the same figure returned for both fields. The
+        # error goes back to the model, which then gets a second chance at the right rows.
+        rev, ni = self.revenue, self.net_income
+        if rev and ni and rev.in_usd() is not None and rev.in_usd() == ni.in_usd():
+            raise ValueError(
+                "revenue and net_income are the same amount: revenue is the top line "
+                "(total revenues or sales), net income is the bottom line"
+            )
+        return self
+
 
 class EmployeesExtraction(BaseModel):
     """From Item 1, usually under "Human Capital"."""
@@ -307,6 +319,9 @@ class FilingRecord(BaseModel):
 # Every company in ingestion/companies.csv is a large cap with well over 1,000 staff, so a
 # smaller number almost always means "164" read from "164 thousand". Revisit for small caps.
 MIN_PLAUSIBLE_EMPLOYEES = 1_000
+# The highest net margins in this universe are around 55% (Visa, NVIDIA). Above 70%, the
+# "revenue" is almost certainly a subtotal or the same row as net income.
+MAX_NET_MARGIN = 0.7
 
 
 def sanity_warnings(record: FilingRecord) -> list[str]:
@@ -318,8 +333,10 @@ def sanity_warnings(record: FilingRecord) -> list[str]:
         warnings.append(f"revenue ${rev:,} is under $1M: unit probably wrong")
     if rev is not None and rev > 2 * 10**12:
         warnings.append(f"revenue ${rev:,} is over $2T: unit probably wrong")
-    if rev and ni is not None and abs(ni) > rev:
-        warnings.append("net income is larger than revenue: check sign, unit or line item")
+    if rev and ni is not None and abs(ni) > MAX_NET_MARGIN * rev:
+        warnings.append(
+            f"net income is {abs(ni) / rev:.0%} of revenue: probably the wrong line item or unit"
+        )
     if record.financials.revenue and record.financials.revenue.currency != "USD":
         warnings.append(f"revenue reported in {record.financials.revenue.currency}, not USD")
     count = record.employees.employee_count

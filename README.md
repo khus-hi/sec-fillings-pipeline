@@ -190,6 +190,8 @@ _Filled in at Stage 5 from a real run. No numbers are written here until they ar
 
 | 2 | On the first real parse, 39 of 150 Item 8 sections and 24 Item 7 sections were under 2,000 characters. Three layouts caused it: (1) "Item 8" is a one-line pointer and the statements sit in F-pages after Item 15 (NFLX, NVDA, ORCL, PEP, DIS, AMT, PLD); (2) "Item 7" says "incorporated by reference" and MD&A appears later under its own title (JPM, CVX, XOM, AEP); (3) GE, HON and MCD use an annual-report layout: the Item headings exist only in a cross-reference index at the end, and the body uses run-in headings in a different order (GE puts MD&A before Risk Factors). | Title-based fallback for short sections, ending at the next heading or title of any other Item (except "Properties" and "Legal Proceedings", which recur inside the notes). Short sections fell from 9 / 9 / 24 / 39 to 1 / 0 / 3 / 0 (Items 1 / 1A / 7 / 8). A `found_by` column makes the fallback auditable. |
 
+| 4 | The first full extraction run reported 441 / 441 tasks valid and 0 quarantined, yet XOM's FY2023 record had revenue equal to net income ($36.01B): a schema-valid answer read from the wrong row. The sanity rule "net income larger than revenue" missed equality. | A validator rejects identical revenue and net income, which sends the error back to the model for a retry. Sanity rule widened to net margin above 70%. The report re-checks stored records in SQL, so older records are covered without re-running. Lesson: validation proves shape, not truth; Stage 5 measures truth. |
+
 ## What I'd do at 10x scale
 
 _Filled in at the end._

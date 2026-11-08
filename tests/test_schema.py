@@ -196,7 +196,7 @@ def test_sanity_warnings_catch_unit_mistakes():
         _record(financials=wrong_unit, employees={"employee_count": 164, "quote": None})
     )
     assert any("under $1M" in w for w in warnings)
-    assert any("larger than revenue" in w for w in warnings)
+    assert any("of revenue: probably the wrong line item" in w for w in warnings)
     assert any("employee count 164" in w for w in warnings)
 
 
@@ -219,3 +219,19 @@ def test_llm_schema_lists_allowed_values():
     assert fin["properties"]["unit"]["enum"] == ["units", "thousands", "millions", "billions"]
     assert "in millions" in fin["properties"]["unit"]["description"]  # survives inlining
     assert set(llm_json_schema("financials")["required"]) == {"revenue", "net_income"}
+
+
+def test_same_amount_for_revenue_and_net_income_is_rejected():
+    same = {"value": 36010, "unit": "millions", "quote": "36,010"}
+    with pytest.raises(ValidationError, match="same amount"):
+        FinancialsExtraction(revenue=same, net_income=same)
+
+
+def test_implausible_net_margin_is_flagged():
+    fin = FinancialsExtraction(
+        revenue={"value": 100, "unit": "billions", "quote": "Total revenues 100"},
+        net_income={"value": 80, "unit": "billions", "quote": "Net income 80"},
+    )
+    assert sanity_warnings(_record(financials=fin)) == [
+        "net income is 80% of revenue: probably the wrong line item or unit"
+    ]

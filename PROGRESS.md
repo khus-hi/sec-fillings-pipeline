@@ -15,7 +15,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | 1 | Ingestion: EDGAR → local S3 (SeaweedFS) raw zone, hashed manifest | **Done** |
 | 2 | Parsing: sections + chunking | **Done** (one known gap: SO Item 7) |
 | 3 | Extraction schema (Pydantic) | **Done** |
-| 4 | LLM extraction, retries, quarantine | **Built and tested offline; waiting on the first real run** |
+| 4 | LLM extraction, retries, quarantine | **Ran on all 150 filings; reviewing suspicious values** |
 | 5 | Evaluation on a 30-document gold set | not started |
 | 6 | DuckDB + dbt staging → marts, tests | not started |
 | 7 | Airflow DAG (Astro, as in Project 1) | not started |
@@ -136,7 +136,20 @@ on the first attempt, 2.4-13.8 s per call, prompts up to 2,502 tokens. It also s
 Stage 4 fixes: every optional quote empty, JPM's employee excerpt was the wrong paragraph, and the
 first Item 1A chunk gives a shallow risk list.
 
+Stage 4 (source: `meta.extract_runs`; `qwen3:8b` on the reference machine, $0):
+
+| Date | Run | Result |
+|---|---|---|
+| 2026-11-08 | `--limit 3` (AAPL FY2024-2026) | 9 / 9 tasks valid on the first attempt, 0 retries, 0 quarantined, 0 warnings; 13,799 tokens; 81.82 s |
+| 2026-11-08 | remaining 147 filings | 441 / 441 tasks valid, 0 retries, 0 quarantined; 644,660 tokens; 5,686.44 s (about 39 s per filing) |
+
+All 150 filings produced a record. **Schema-valid is not the same as correct:** XOM's FY2023
+record has revenue equal to net income ($36.01B), a valid answer from the wrong row. The rule
+"net income larger than revenue" didn't fire on equality. Fixes: a validator rejects identical
+revenue and net income (so the model retries with that error), the sanity rule now flags any net
+margin above 70%, and the report re-checks stored records in SQL. Accuracy is measured in Stage 5.
+
 ## Next step
 
-Run Stage 4 on a few filings, then all 150 (`python -m extraction.extract`), and record validity,
-retries, quarantine, latency and tokens here from `python -m extraction.report`.
+Review the report's suspicious-financials list, re-extract those filings
+(`--tickers ... --tasks financials --force`), then Stage 5: the gold set and per-field metrics.
