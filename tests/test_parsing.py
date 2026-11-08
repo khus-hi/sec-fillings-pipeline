@@ -251,3 +251,59 @@ def test_title_mentioned_mid_sentence_is_not_a_title():
     )
     item_7 = extract_sections(text)["item_7"]
     assert item_7.found_by == "heading" and item_7.is_short
+
+
+def _cross_reference_index_10k() -> str:
+    """GE / MCD style: annual-report layout with run-in headings, MD&A before Risk
+    Factors, and the "Item N" lines only in a cross-reference index at the very end."""
+    return "\n".join(
+        [
+            "Management's Discussion and Analysis of Financial Condition and Results of Operations",
+            "| 7",
+            "Risk Factors",
+            "| 24",
+            "Report of Independent Registered Public Accounting Firm",
+            "| 36",
+            "OUR BUSINESS. We make jet engines. " + _FILLER,
+            "HUMAN CAPITAL. We had approximately 53,000 employees. " + _FILLER,
+            "MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF "
+            "OPERATIONS (MD&A). Revenue rose. " + _FILLER,
+            "CYBERSECURITY. We assess cyber risk. " + _FILLER,
+            "RISK FACTORS. The following discussion of material risks. " + _FILLER,
+            "REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM",
+            "We have audited the statements. " + _FILLER,
+            "Legal Proceedings",
+            "Note 23 on litigation sits inside the financial statements. " + _FILLER,
+            "Item 1. | Business | 4-7",
+            "Item 1A. | Risk Factors | 24-31",
+            "Item 7. | Management's Discussion and Analysis | 7-22",
+            "Item 7A. | Quantitative and Qualitative Disclosures About Market Risk | 13",
+            "Item 8. | Financial Statements and Supplementary Data | 36-73",
+            "Item 9. | Changes in and Disagreements With Accountants | Not applicable",
+        ]
+    )
+
+
+def test_cross_reference_index_filing_uses_run_in_titles():
+    secs = extract_sections(_cross_reference_index_10k())
+    assert {n: s.found_by for n, s in secs.items()} == {
+        "item_1": "title",
+        "item_1a": "title",
+        "item_7": "title",
+        "item_8": "title",
+    }
+    assert secs["item_1"].text.startswith("HUMAN CAPITAL.") and "53,000" in secs["item_1"].text
+    # MD&A comes before Risk Factors here, and ends at the Cybersecurity heading.
+    assert secs["item_7"].text.startswith("MANAGEMENT'S DISCUSSION")
+    assert "CYBERSECURITY" not in secs["item_7"].text
+    assert secs["item_1a"].text.startswith("RISK FACTORS.")
+    assert "We have audited" not in secs["item_1a"].text
+    # A "Legal Proceedings" subheading in the notes does not cut the financial statements.
+    assert secs["item_8"].text.startswith("REPORT OF INDEPENDENT")
+    assert "Note 23 on litigation" in secs["item_8"].text
+    assert "Item 1A." not in secs["item_8"].text
+
+
+def test_mixed_case_long_line_is_not_a_run_in_title():
+    text = "Item 7. MD&A\nSee page 40.\nRisk factors. " + _FILLER + "\nItem 8. Statements\nx"
+    assert "item_1a" not in extract_sections(text)
