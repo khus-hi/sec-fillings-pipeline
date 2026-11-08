@@ -1,4 +1,4 @@
-"""Debug section finding for one company: python -m parsing.inspect_doc GE
+"""Debug section finding for one company: python -m parsing.inspect_doc GE [--accession ...]
 
 Shows the heading candidates the parser saw, the section it picked for each Item, and
 every other line that mentions an Item (to reveal headings the regex missed).
@@ -26,6 +26,7 @@ _TITLE_RE = re.compile(
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("ticker")
+    p.add_argument("--accession", help="a specific filing (default: the newest)")
     p.add_argument("--max-lines", type=int, default=25)
     args = p.parse_args()
 
@@ -33,8 +34,8 @@ def main() -> None:
     con = duckdb.connect(str(settings.duckdb_path), read_only=True)
     row = con.execute(
         "SELECT raw_uri, accession_number FROM meta.documents WHERE ticker = ? "
-        "ORDER BY filing_date DESC LIMIT 1",
-        [args.ticker.upper()],
+        "AND (? IS NULL OR accession_number = ?) ORDER BY filing_date DESC LIMIT 1",
+        [args.ticker.upper(), args.accession, args.accession],
     ).fetchone()
     if not row:
         raise SystemExit(f"no document for {args.ticker}")
