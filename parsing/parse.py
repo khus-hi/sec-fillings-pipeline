@@ -32,7 +32,7 @@ from parsing.sections import WANTED, extract_sections
 
 log = logging.getLogger("parsing")
 
-PARSER_VERSION = "1"
+PARSER_VERSION = "2"  # 2: title fallback for short Item 1A / 7 / 8
 
 DDL = """
 CREATE SCHEMA IF NOT EXISTS parsed;
@@ -61,6 +61,8 @@ CREATE TABLE IF NOT EXISTS parsed.sections (
     text         VARCHAR NOT NULL,
     PRIMARY KEY (sha256, section)
 );
+-- Added in parser version 2: which rule located the section (heading | title).
+ALTER TABLE parsed.sections ADD COLUMN IF NOT EXISTS found_by VARCHAR;
 
 CREATE TABLE IF NOT EXISTS parsed.chunks (
     chunk_id      VARCHAR PRIMARY KEY,      -- <sha256[:16]>:<section>:<index>
@@ -132,8 +134,9 @@ def save_document(
             con.execute(f"DELETE FROM {table} WHERE sha256 = ?", [sha256])
         for name, sec in sections.items():
             con.execute(
-                "INSERT INTO parsed.sections VALUES (?, ?, ?, ?, ?, ?)",
-                [sha256, name, sec.start, len(sec.text), sec.is_short, sec.text],
+                "INSERT INTO parsed.sections (sha256, section, start_offset, char_count, "
+                "is_short, text, found_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [sha256, name, sec.start, len(sec.text), sec.is_short, sec.text, sec.found_by],
             )
         chunk_rows = [
             [f"{sha256[:16]}:{name}:{c.index:03d}", sha256, name, c.index, len(c.text),
@@ -213,6 +216,7 @@ def run(
                         "sections": {n: len(s.text) for n, s in sorted(secs.items())},
                         "missing": [f"item_{i}" for i in WANTED if f"item_{i}" not in secs],
                         "short": sorted(n for n, s in secs.items() if s.is_short),
+                        "by_title": sorted(n for n, s in secs.items() if s.found_by == "title"),
                         "chunks": sum(len(c) for c in result["chunks"].values()),
                     }
                 )

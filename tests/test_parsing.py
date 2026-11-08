@@ -179,3 +179,75 @@ def test_real_sized_risk_section_chunks_fit_budget(sections):
     chunks = chunk_text(sections["item_1a"].text, max_chars=2000, overlap_chars=300)
     assert len(chunks) > 1
     assert all(c.approx_tokens <= 500 for c in chunks)
+
+
+# ---------- Title fallback for short sections ----------
+
+_FILLER = "Revenue grew because demand for our products increased in every region. " * 60
+
+
+def _pointer_10k() -> str:
+    """Item 7 and Item 8 are one-line pointers; the real text sits under plain titles."""
+    return "\n".join(
+        [
+            "Item 1. Business",
+            _FILLER,
+            "Item 1A. Risk Factors",
+            _FILLER,
+            "Item 7. Management's Discussion and Analysis",
+            "The information required by this item is incorporated by reference to pages 30-60.",
+            "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+            "See Management's Discussion and Analysis for market risk.",
+            "Item 8. Financial Statements and Supplementary Data",
+            "See the Index to Financial Statements on page F-1.",
+            "Item 9. Changes in and Disagreements with Accountants",
+            "None.",
+            "Management's Discussion and Analysis of Financial Condition and Results of Operations",
+            "MDA-BODY " + _FILLER,
+            "Item 15. Exhibits and Financial Statement Schedules",
+            "Exhibit list.",
+            "Report of Independent Registered Public Accounting Firm",
+            "AUDIT-BODY " + _FILLER,
+            "Consolidated Statements of Operations",
+            "Net income | 1,000",
+        ]
+    )
+
+
+def test_normal_filing_uses_headings(sections):
+    assert {s.found_by for s in sections.values()} == {"heading"}
+
+
+def test_short_item_7_falls_back_to_mdna_title():
+    item_7 = extract_sections(_pointer_10k())["item_7"]
+    assert item_7.found_by == "title"
+    assert item_7.text.startswith("Management's Discussion and Analysis of Financial")
+    assert "MDA-BODY" in item_7.text
+    assert "Item 15" not in item_7.text  # ends at the next later Item heading
+    assert not item_7.is_short
+
+
+def test_short_item_8_falls_back_to_auditor_report_in_f_pages():
+    item_8 = extract_sections(_pointer_10k())["item_8"]
+    assert item_8.found_by == "title"
+    assert item_8.text.startswith("Report of Independent Registered Public Accounting Firm")
+    assert "AUDIT-BODY" in item_8.text and "Net income | 1,000" in item_8.text
+
+
+def test_long_heading_section_is_kept_over_title():
+    sections = extract_sections(_pointer_10k())
+    assert sections["item_1a"].found_by == "heading"
+    assert "See Management's Discussion" not in sections["item_7"].text[:200]
+
+
+def test_title_mentioned_mid_sentence_is_not_a_title():
+    text = "\n".join(
+        [
+            "Item 7. Management's Discussion and Analysis",
+            "Short pointer.",
+            "Item 8. Financial Statements and Supplementary Data",
+            "As described in Management's Discussion and Analysis, revenue grew. " + _FILLER,
+        ]
+    )
+    item_7 = extract_sections(text)["item_7"]
+    assert item_7.found_by == "heading" and item_7.is_short

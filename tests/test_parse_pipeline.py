@@ -82,11 +82,11 @@ def test_force_reparses_without_duplicates(env):
 def test_new_parser_version_reparses(env, monkeypatch):
     con, store = env
     parse.run(con, store)
-    monkeypatch.setattr(parse, "PARSER_VERSION", "2")
+    monkeypatch.setattr(parse, "PARSER_VERSION", "next")
     stats = parse.run(con, store)
     assert stats["parsed"] == 2
     versions = con.execute("SELECT DISTINCT parser_version FROM parsed.documents").fetchall()
-    assert versions == [("2",)]
+    assert versions == [("next",)]
 
 
 def test_tickers_filter_and_limit(env):
@@ -153,3 +153,17 @@ def test_crash_mid_save_leaves_no_partial_rows(env, monkeypatch):
     # The rollback restored the old sections and chunks.
     assert _count(con, "parsed.chunks") == before
     assert _count(con, "parsed.sections") == 4
+
+
+def test_found_by_is_stored_and_old_schema_is_upgraded(env):
+    con, store = env
+    # A database created by parser version 1 has no found_by column.
+    con.execute("CREATE SCHEMA IF NOT EXISTS parsed")
+    con.execute(
+        "CREATE TABLE parsed.sections (sha256 VARCHAR NOT NULL, section VARCHAR NOT NULL, "
+        "start_offset BIGINT NOT NULL, char_count BIGINT NOT NULL, is_short BOOLEAN NOT NULL, "
+        "text VARCHAR NOT NULL, PRIMARY KEY (sha256, section))"
+    )
+    parse.run(con, store)
+    rows = con.execute("SELECT DISTINCT found_by FROM parsed.sections").fetchall()
+    assert rows == [("heading",)]

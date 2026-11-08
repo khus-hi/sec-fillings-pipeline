@@ -48,7 +48,7 @@ def main() -> None:
 
     print("\n-- picked sections")
     for name, sec in extract_sections(text).items():
-        print(f"{name:<8} {len(sec.text):>8,} chars  starts {sec.text[:120]!r}")
+        print(f"{name:<8} {len(sec.text):>8,} chars  {sec.found_by:<7} starts {sec.text[:100]!r}")
 
     def show(title: str, regex: re.Pattern) -> None:
         print(f"\n-- {title} (first {args.max_lines})")

@@ -31,6 +31,7 @@ def main() -> None:
                   (SELECT n FROM docs) AS of_docs,
                   round(100.0 * count(*) / (SELECT n FROM docs), 1) AS pct_found,
                   count(*) FILTER (WHERE s.is_short) AS short,
+                  count(*) FILTER (WHERE s.found_by = 'title') AS by_title,
                   median(s.char_count)::BIGINT AS median_chars,
                   max(s.char_count) AS max_chars
            FROM parsed.sections s
