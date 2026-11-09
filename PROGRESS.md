@@ -163,8 +163,9 @@ review, not a metric.
 After the financials re-run, the three filings that had answered with the wrong row now fail
 validation three times and are quarantined instead of stored. That run exposed one more bug: their
 old records stayed in `extracted.filings`. A document whose current answers are incomplete now has
-its record removed. From the report: 147 records, revenue present in 142, net income 146, employee
-count 144; 23 records carry at least one warning (down from 33).
+its record removed. From the report before that fix (150 rows, the three stale ones included):
+revenue present in 142, net income 146, employee count 144; 23 records carry at least one warning
+(down from 33).
 
 Still open from review: AEP FY2023 is a subsidiary's figures, MRK FY2023 revenue looks too low,
 revenue is null for 8 filings, and two employee counts look like a single segment (HON FY2024,
