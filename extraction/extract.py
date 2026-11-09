@@ -461,6 +461,13 @@ def run(
                     quarantine(con, doc.sha256, "record", model, 0, "; ".join(_errors(err)), None)
                     log.warning("record for %s %s quarantined: %s", doc.ticker,
                                 doc.accession_number, err)  # fmt: skip
+            else:
+                # A task failed this time: drop the record built from older answers, so a
+                # stale row never sits in the table looking like a current result.
+                con.execute(
+                    "DELETE FROM extracted.filings WHERE sha256 = ? AND model = ?",
+                    [doc.sha256, model],
+                )
     finally:
         stats["seconds"] = round(time.perf_counter() - started, 2)
         con.execute(
