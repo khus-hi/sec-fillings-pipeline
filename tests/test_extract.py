@@ -156,6 +156,15 @@ def test_stored_answer_rejected_by_a_newer_rule_is_extracted_again(con):
     assert _one(con, "SELECT revenue_usd FROM extracted.filings")[0] == 391_035_000_000
 
 
+def test_quarantined_task_removes_the_stale_record(con, monkeypatch):
+    extract.run(con, FakeLLM())
+    assert _one(con, "SELECT count(*) FROM extracted.filings")[0] == 1
+    monkeypatch.setitem(extract.PROMPT_VERSIONS, "financials", "next")
+    stats = extract.run(con, FakeLLM({"financials": ["not json"] * 3}))
+    assert (stats["tasks_quarantined"], stats["records"]) == (1, 0)
+    assert _one(con, "SELECT count(*) FROM extracted.filings")[0] == 0
+
+
 def test_ungrounded_values_are_flagged(con):
     made_up = {
         **GOOD["financials"],

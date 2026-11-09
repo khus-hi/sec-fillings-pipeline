@@ -144,6 +144,7 @@ Stage 4 (source: `meta.extract_runs`; `qwen3:8b` on the reference machine, $0):
 |---|---|---|
 | 2026-11-08 | `--limit 3` (AAPL FY2024-2026) | 9 / 9 tasks valid on the first attempt, 0 retries, 0 quarantined, 0 warnings; 13,799 tokens; 81.82 s |
 | 2026-11-08 | remaining 147 filings | 441 / 441 tasks valid, 0 retries, 0 quarantined; 644,660 tokens; 5,686.44 s (about 39 s per filing) |
+| 2026-11-09 | financials re-run (prompt v2, new validators), 150 filings | 147 / 150 valid, 8 retries, 3 quarantined (NVDA FY2025, VZ FY2025, XOM FY2023); 300 tasks skipped from cache; 398,878 tokens; 2,347.58 s |
 
 All 150 filings produced a record. From `python -m extraction.report` after that run: revenue
 present in 143 / 150 records, net income 146, employee count 144; 33 records carry at least one
@@ -159,7 +160,17 @@ prompt v2, margin and identical-amount validators, per-task cache keys) re-run o
 financials. Accuracy is measured properly against a gold set in Stage 5; these examples are from
 review, not a metric.
 
+After the financials re-run, the three filings that had answered with the wrong row now fail
+validation three times and are quarantined instead of stored. That run exposed one more bug: their
+old records stayed in `extracted.filings`. A document whose current answers are incomplete now has
+its record removed. From the report before that fix (150 rows, the three stale ones included):
+revenue present in 142, net income 146, employee count 144; 23 records carry at least one warning
+(down from 33).
+
+Still open from review: AEP FY2023 is a subsidiary's figures, MRK FY2023 revenue looks too low,
+revenue is null for 8 filings, and two employee counts look like a single segment (HON FY2024,
+OXY FY2023). Stage 5 measures these properly.
+
 ## Next step
 
-Re-run extraction (only the financials re-run, about 150 calls), check the suspicious-financials
-list again, then Stage 5: the gold set and per-field metrics.
+Stage 5: the gold set and per-field metrics.
