@@ -1,11 +1,17 @@
-"""Prompts for each LLM task. PROMPT_VERSION is part of the extraction cache key: change a
-prompt, bump it, and the next run re-extracts."""
+"""Prompts for each LLM task. Each task's prompt version is part of its cache key: change a
+prompt, bump its version, and the next run re-extracts that task only."""
 
 from __future__ import annotations
 
 from extraction.schema import CATEGORY_DESCRIPTIONS
 
-PROMPT_VERSION = "1"
+PROMPT_VERSIONS = {
+    # 2: revenue labels, parent company only, distinct rows (first full run: XOM, NVDA and VZ
+    #    returned net income as revenue; JNJ, MRK, NEM returned null for "Sales" lines).
+    "financials": "2",
+    "employees": "1",
+    "risk_factors": "1",
+}
 
 SYSTEM = (
     "You extract facts from SEC 10-K filings into JSON. Use only the excerpt you are given. "
@@ -19,8 +25,13 @@ _TASK = {
     "financials": (
         "From this excerpt of {company}'s 10-K (fiscal year ending {period_end}), extract total "
         "revenue and net income for the fiscal year ending {period_end} (the most recent "
-        "column). Give each number as printed in the table, the unit stated in the table "
-        "header (e.g. 'in millions'), and the table row it came from as the quote."
+        "column). Revenue is the top line of the income statement and may be labelled 'Total "
+        "revenues', 'Revenues', 'Net sales', 'Sales', 'Sales to customers', 'Total net "
+        "revenue' or 'Operating revenues'. Net income is the bottom line ('Net income "
+        "attributable to ...'). They come from different rows and are never the same number. "
+        "If the excerpt covers several companies, use {company} itself, not a subsidiary. "
+        "Give each number as printed in the table, the unit stated in the table header (e.g. "
+        "'in millions'), and the table row it came from as the quote."
     ),
     "employees": (
         "From this excerpt of {company}'s 10-K, extract the total number of employees. Use the "

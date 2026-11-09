@@ -17,7 +17,8 @@ When all three tasks are ok, a `FilingRecord` is assembled with the manifest fac
 stored in `extracted.filings`, with sanity and grounding warnings attached.
 
 Idempotency: a task is skipped when it is already ok for the same document hash, model and
-EXTRACTOR_VERSION (schema + prompt version). Each run is logged in `meta.extract_runs`, and
+its task version (schema version + that task's prompt version), so changing one prompt re-runs
+only that task. Each run is logged in `meta.extract_runs`, and
 every task writes one JSON log line with model, latency, tokens, cost, attempts and result.
 """
 
@@ -37,7 +38,7 @@ from pydantic import BaseModel, ValidationError
 
 from extraction import context as ctx
 from extraction.llm import LLMClient, LLMUnavailable, OllamaClient
-from extraction.prompts import PROMPT_VERSION, build_messages, retry_message
+from extraction.prompts import PROMPT_VERSIONS, build_messages, retry_message
 from extraction.schema import (
     LLM_TASKS,
     SCHEMA_VERSION,
@@ -50,9 +51,19 @@ from ingestion.manifest import Manifest, utcnow
 
 log = logging.getLogger("extraction")
 
-EXTRACTOR_VERSION = f"s{SCHEMA_VERSION}-p{PROMPT_VERSION}"
 MAX_ATTEMPTS = 3
 TASKS = list(LLM_TASKS)
+
+
+def task_version(task: str) -> str:
+    """Cache key for one task's answers: schema version + that task's prompt version."""
+    return f"s{SCHEMA_VERSION}-p{PROMPT_VERSIONS.get(task, '0')}"
+
+
+def extractor_version() -> str:
+    """All task versions, stored with runs and records."""
+    return ",".join(f"{t}={task_version(t)}" for t in TASKS)
+
 
 DDL = """
 CREATE SCHEMA IF NOT EXISTS extracted;
@@ -151,34 +162,28 @@ def pending_documents(
     tickers: list[str] | None,
     force: bool,
 ) -> list[Document]:
-    """Parsed documents with at least one task not yet ok for this model and version."""
+    """Parsed documents with at least one task that has no current, valid answer."""
     where, params = "", []
     if tickers:
         where = f"AND m.ticker IN ({', '.join('?' for _ in tickers)})"
         params = [t.upper() for t in tickers]
     rows = con.execute(
         f"""
-        WITH docs AS (
-            SELECT p.sha256, min(m.accession_number) AS accession_number, min(m.cik) AS cik,
-                   min(m.ticker) AS ticker, min(m.company_name) AS company_name,
-                   min(m.report_date) AS period_end, min(p.parser_version) AS parser_version,
-                   min(m.filing_date) AS filing_date
-            FROM parsed.documents p JOIN meta.documents m USING (sha256)
-            WHERE p.status = 'ok' {where}
-            GROUP BY p.sha256
-        ),
-        done AS (
-            SELECT sha256, count(*) AS n FROM extracted.task_results
-            WHERE model = ? AND status = 'ok' AND extractor_version = ?
-            GROUP BY sha256
-        )
-        SELECT d.* EXCLUDE (filing_date), coalesce(done.n, 0) AS n_done
-        FROM docs d LEFT JOIN done USING (sha256)
-        ORDER BY d.ticker, d.filing_date DESC
+        SELECT p.sha256, min(m.accession_number), min(m.cik), min(m.ticker),
+               min(m.company_name), min(m.report_date), min(p.parser_version)
+        FROM parsed.documents p JOIN meta.documents m USING (sha256)
+        WHERE p.status = 'ok' {where}
+        GROUP BY p.sha256
+        ORDER BY min(m.ticker), min(m.filing_date) DESC
         """,
-        [*params, model, EXTRACTOR_VERSION],
+        params,
     ).fetchall()
-    return [Document(*r[:7]) for r in rows if force or r[7] < len(TASKS)]
+    docs = [Document(*r) for r in rows]
+    if force:
+        return docs
+    # Checked in Python with the same rule the run uses (load_answers), so "done" always
+    # means: current task version and still valid under today's schema.
+    return [d for d in docs if len(load_answers(con, d.sha256, model)) < len(TASKS)]
 
 
 def load_context(con: duckdb.DuckDBPyConnection, sha256: str, task: str) -> str:
@@ -307,7 +312,7 @@ def save_task(con, doc: Document, task: str, model: str, out: TaskOutcome, conte
     con.execute(
         "INSERT INTO extracted.task_results VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
-            doc.sha256, task, model, EXTRACTOR_VERSION, "ok" if out.ok else "quarantined",
+            doc.sha256, task, model, task_version(task), "ok" if out.ok else "quarantined",
             out.attempts, out.answer.model_dump_json() if out.answer else None, out.warnings,
             context_chars, round(out.latency_s, 3), out.prompt_tokens, out.completion_tokens,
             out.cost_usd, now,
@@ -324,18 +329,27 @@ def quarantine(con, sha256, task, model, attempts, reason, last_output, resolved
     if not resolved:
         con.execute(
             "INSERT INTO extracted.quarantine VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            [sha256, task, model, EXTRACTOR_VERSION, attempts, reason or "unknown",
+            [sha256, task, model, task_version(task), attempts, reason or "unknown",
              last_output, utcnow()],
         )  # fmt: skip
 
 
 def load_answers(con, sha256: str, model: str) -> dict[str, BaseModel]:
+    """Stored answers that are current for their task. Each is validated again, so an answer
+    that a newer, stricter rule rejects counts as not done and is extracted again."""
     rows = con.execute(
-        "SELECT task, result_json FROM extracted.task_results WHERE sha256 = ? AND model = ? "
-        "AND status = 'ok' AND extractor_version = ?",
-        [sha256, model, EXTRACTOR_VERSION],
+        "SELECT task, extractor_version, result_json FROM extracted.task_results "
+        "WHERE sha256 = ? AND model = ? AND status = 'ok'",
+        [sha256, model],
     ).fetchall()
-    return {task: LLM_TASKS[task].model_validate_json(js) for task, js in rows}
+    answers = {}
+    for task, version, js in rows:
+        if task in LLM_TASKS and version == task_version(task):
+            try:
+                answers[task] = LLM_TASKS[task].model_validate_json(js)
+            except ValidationError:
+                continue
+    return answers
 
 
 def save_record(con, doc: Document, model: str, answers: dict[str, BaseModel]) -> FilingRecord:
@@ -353,14 +367,12 @@ def save_record(con, doc: Document, model: str, answers: dict[str, BaseModel]) -
         parser_version=doc.parser_version,
         extracted_at=utcnow(),
     )
-    task_warnings = (
-        con.execute(
-            "SELECT flatten(list(warnings)) FROM extracted.task_results "
-            "WHERE sha256 = ? AND model = ? AND status = 'ok' AND extractor_version = ?",
-            [doc.sha256, model, EXTRACTOR_VERSION],
-        ).fetchone()[0]
-        or []
-    )
+    rows = con.execute(
+        "SELECT task, extractor_version, warnings FROM extracted.task_results "
+        "WHERE sha256 = ? AND model = ? AND status = 'ok'",
+        [doc.sha256, model],
+    ).fetchall()
+    task_warnings = [w for t, v, ws in rows if v == task_version(t) for w in (ws or [])]
     warnings = sanity_warnings(record) + list(task_warnings)
     con.execute("DELETE FROM extracted.filings WHERE sha256 = ? AND model = ?", [doc.sha256, model])
     con.execute(
@@ -370,7 +382,7 @@ def save_record(con, doc: Document, model: str, answers: dict[str, BaseModel]) -
             record.company_name, record.period_end, record.fiscal_year, record.revenue_usd,
             record.net_income_usd, record.employees.employee_count,
             [{"title": r.title, "category": r.category.value} for r in record.risks.risk_factors],
-            warnings, record.model_dump_json(), EXTRACTOR_VERSION, record.extracted_at,
+            warnings, record.model_dump_json(), extractor_version(), record.extracted_at,
         ],
     )  # fmt: skip
     return record
@@ -394,7 +406,7 @@ def run(
     con.execute(
         "INSERT INTO meta.extract_runs (run_id, model, extractor_version, started_at) "
         "VALUES (?, ?, ?, ?)",
-        [run_id, model, EXTRACTOR_VERSION, utcnow()],
+        [run_id, model, extractor_version(), utcnow()],
     )
     docs = pending_documents(con, model, tickers, force)
     if limit is not None:

@@ -15,7 +15,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | 1 | Ingestion: EDGAR → local S3 (SeaweedFS) raw zone, hashed manifest | **Done** |
 | 2 | Parsing: sections + chunking | **Done** (one known gap: SO Item 7) |
 | 3 | Extraction schema (Pydantic) | **Done** |
-| 4 | LLM extraction, retries, quarantine | **Built and tested offline; waiting on the first real run** |
+| 4 | LLM extraction, retries, quarantine | **Ran on all 150 filings; reviewing suspicious values** |
 | 5 | Evaluation on a 30-document gold set | not started |
 | 6 | DuckDB + dbt staging → marts, tests | not started |
 | 7 | Airflow DAG (Astro, as in Project 1) | not started |
@@ -68,11 +68,13 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 
 - `extraction/context.py`: excerpt per task (employee-count lines, best income-statement chunk,
   Item 1A risk headings), capped at 6,000 characters.
-- `extraction/prompts.py`: system prompt, task instructions, retry message; `PROMPT_VERSION`.
+- `extraction/prompts.py`: system prompt, task instructions, retry message; `PROMPT_VERSIONS`
+  (one per task).
 - `extraction/llm.py`: `LLMClient` protocol and `OllamaClient` (constrained JSON, `think=false`,
   temperature 0, 8k context; returns latency, tokens, cost).
 - `extraction/extract.py`: the job. Retries with validation errors (3 attempts), quarantine,
-  grounding warnings, record assembly, idempotent by (sha256, task, model, extractor version).
+  grounding warnings, record assembly, idempotent by (sha256, task, model, task version); a stored answer that newer validators
+  reject counts as not done.
   Tables: `extracted.task_results`, `extracted.quarantine`, `extracted.filings`, `meta.extract_runs`.
 - `extraction/report.py`: validity, retries, quarantine, latency, tokens, warnings, values.
 - Tests: a scripted fake model drives retry, quarantine and recovery, skip and force, version bump,
@@ -136,7 +138,28 @@ on the first attempt, 2.4-13.8 s per call, prompts up to 2,502 tokens. It also s
 Stage 4 fixes: every optional quote empty, JPM's employee excerpt was the wrong paragraph, and the
 first Item 1A chunk gives a shallow risk list.
 
+Stage 4 (source: `meta.extract_runs`; `qwen3:8b` on the reference machine, $0):
+
+| Date | Run | Result |
+|---|---|---|
+| 2026-11-08 | `--limit 3` (AAPL FY2024-2026) | 9 / 9 tasks valid on the first attempt, 0 retries, 0 quarantined, 0 warnings; 13,799 tokens; 81.82 s |
+| 2026-11-08 | remaining 147 filings | 441 / 441 tasks valid, 0 retries, 0 quarantined; 644,660 tokens; 5,686.44 s (about 39 s per filing) |
+
+All 150 filings produced a record. From `python -m extraction.report` after that run: revenue
+present in 143 / 150 records, net income 146, employee count 144; 33 records carry at least one
+warning (28 net-income quotes and 21 revenue quotes not found verbatim in the excerpt, 6 employee
+counts not found, 1 revenue value not found, 1 net income larger than revenue).
+
+**Schema-valid is not the same as correct.** Reading the extracted values against the companies'
+reported figures showed answers from the wrong row: XOM FY2023 and NVDA FY2025 with revenue equal
+to net income, VZ FY2025 with a 99% net margin, WMT FY2024 revenue of $0.56B. Some revenue was
+missing where the line is labelled "Sales" or "Sales to customers" (JNJ, MRK, NEM), and some
+combined utility filings (AEP FY2023, D FY2024) returned a subsidiary's figures. Fixes (financials
+prompt v2, margin and identical-amount validators, per-task cache keys) re-run only the
+financials. Accuracy is measured properly against a gold set in Stage 5; these examples are from
+review, not a metric.
+
 ## Next step
 
-Run Stage 4 on a few filings, then all 150 (`python -m extraction.extract`), and record validity,
-retries, quarantine, latency and tokens here from `python -m extraction.report`.
+Re-run extraction (only the financials re-run, about 150 calls), check the suspicious-financials
+list again, then Stage 5: the gold set and per-field metrics.
