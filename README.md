@@ -64,6 +64,12 @@ Run these one at a time. (macOS ships `python3`, not `python`; inside the activa
    python -m extraction.report
    python -m extraction.extract
    ```
+7. Evaluate. The first command samples the gold set and pre-fills it from each filing's inline
+   XBRL; check the rows by hand (rules in `evaluation/LABELLING.md`), then score:
+   ```bash
+   python -m evaluation.gold
+   python -m evaluation.evaluate
+   ```
 
 ## Repository layout
 
@@ -72,7 +78,7 @@ Run these one at a time. (macOS ships `python3`, not `python`; inside the activa
 | `ingestion/` | 1 | EDGAR client, raw-zone storage, manifest, company list |
 | `parsing/` | 2 | HTML to text, section finder, chunking |
 | `extraction/` | 3, 4 | Pydantic schema, LLM client, retries, quarantine |
-| `evaluation/` | 5 | gold labels, metrics |
+| `evaluation/` | 5 | XBRL reference values, gold set and labelling rules, metrics |
 | `dbt/` | 6 | staging and marts on DuckDB |
 | `dags/` | 7 | Airflow DAG |
 | `app/` | 9 | Streamlit app |
@@ -107,7 +113,26 @@ review instead of rejecting them.
 
 ## Evaluation results
 
-_Filled in at Stage 5 from a real run. No numbers are written here until they are measured._
+_Filled in from a real run. No numbers are written here until they are measured._
+
+**Method.** Two references, reported separately:
+
+- **Gold set:** 30 filings (3 companies per sector, one fiscal year each, fixed seed), checked by
+  hand against the filing. Revenue and net income are pre-filled from the filing's inline XBRL
+  and corrected where the tagged concept is not the top line; employee counts and risk categories
+  are labelled by hand, risk categories blind to the model's answer.
+- **XBRL, all filings:** revenue and net income for every filing against the company's own
+  inline XBRL tags (registrant context, fiscal-year duration, no dimensions). Automatic, so it
+  covers all 150 filings, but it trusts the company's choice of concept.
+
+**Scoring.** "Not found" is an answer. A correct value is a true positive; a wrong value counts as
+both a false positive and a false negative; a missed value is a false negative; a value where the
+reference has none is a false positive. Numbers match within 0.5% (tables round to millions or
+tenths of a billion). Exact match is the share of filings where prediction and reference are
+identical, both-null included. A quarantined filing scores as a null prediction, so quarantine
+costs recall rather than disappearing from the denominator. Risk categories: accuracy and
+per-category precision, recall and F1 (macro-averaged). Every run is stored in `eval.runs`,
+`eval.field_scores` and `eval.mismatches`, per model, so Stage 8 compares models on the same rows.
 
 ## Design decisions
 
@@ -183,6 +208,18 @@ _Filled in at Stage 5 from a real run. No numbers are written here until they ar
 - **Per-task log line and run table.** Model, latency, prompt/answer tokens, cost, attempts,
   warnings and errors per task (JSON logs + `extracted.task_results`), totals per run in
   `meta.extract_runs`.
+
+**Evaluation (Stage 5)**
+- **Inline XBRL as an answer key.** Every 10-K tags its statement numbers with a us-gaap concept
+  and a context (entity, period, dimensions). Reading those gives revenue and net income for all
+  filings with no human labour and no dependence on the LLM or the parser. Its limit is the
+  company's choice of concept, which is why a hand-checked gold set sits next to it.
+- **Pre-fill, then verify.** Gold rows start from XBRL and count only once a person sets
+  `verified=y`; an unchecked pre-fill is never scored as a label.
+- **Blind risk labels.** The labelling file has the model's risk titles but not its categories, so
+  the label is not anchored on the answer being graded.
+- **Null is scored.** Precision and recall are defined so that inventing a value, missing one and
+  getting one wrong are all penalised, and quarantine counts as a miss.
 
 ## Failure modes I found
 
