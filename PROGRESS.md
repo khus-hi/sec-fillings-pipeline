@@ -15,8 +15,8 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | 1 | Ingestion: EDGAR → local S3 (SeaweedFS) raw zone, hashed manifest | **Done** |
 | 2 | Parsing: sections + chunking | **Done** (one known gap: SO Item 7) |
 | 3 | Extraction schema (Pydantic) | **Done** |
-| 4 | LLM extraction, retries, quarantine | **Ran on all 150 filings; reviewing suspicious values** |
-| 5 | Evaluation on a 30-document gold set | not started |
+| 4 | LLM extraction, retries, quarantine | **Done** (150 filings; 3 quarantined) |
+| 5 | Evaluation on a 30-document gold set | **Built**; waiting on gold labels and the first scored run |
 | 6 | DuckDB + dbt staging → marts, tests | not started |
 | 7 | Airflow DAG (Astro, as in Project 1) | not started |
 | 8 | Optional: local vs hosted model comparison | not started |
@@ -80,6 +80,22 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 - Tests: a scripted fake model drives retry, quarantine and recovery, skip and force, version bump,
   grounding warnings, server-down handling, missing period end.
 
+## Stage 5: what exists
+
+- `evaluation/xbrl.py`: reads `<ix:nonFraction>` facts and their contexts from the raw filing;
+  revenue and net income for the registrant's fiscal year (concept priority list, no
+  dimensions, 340 to 380 day duration ending at the period end), employee count when tagged.
+- `evaluation/gold.py`: samples 30 filings (3 per sector, seed 2026), writes `gold_set.csv`
+  pre-filled from XBRL with employee evidence sentences, and `risk_labels.csv` (titles only).
+  XBRL values are cached in `eval.xbrl_reference` by content hash and XBRL-reader version.
+- `evaluation/metrics.py`: precision, recall, F1 and exact match with null as an answer; 0.5%
+  numeric tolerance; one-vs-rest label scores and macro F1.
+- `evaluation/evaluate.py`: scores every model in `extracted.filings` against both references,
+  stores `eval.runs`, `eval.field_scores`, `eval.mismatches`, prints a Markdown table.
+- `evaluation/LABELLING.md`: labelling rules and the category definitions the prompt also uses.
+- Tests: XBRL context selection (prior year, subsidiary, quarter ignored), value formats (scale,
+  sign, dashes, comma decimals), scoring rules, reproducible sampling, end-to-end scoring.
+
 ## Decisions and why
 
 | Decision | Why | Alternative rejected |
@@ -100,6 +116,9 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | Risk factors from Item 1A headings | whole list in ~1,500 tokens; the first chunk only covers one or two risks | first chunk; map-reduce over every chunk (10x the calls) |
 | Retry with Pydantic errors, then quarantine | the model fixes most mistakes when told exactly what failed; failures stay visible | drop invalid answers; retry blindly |
 | Grounding warnings, not rejections | a number missing from the excerpt is a strong hallucination signal, but quotes can be reformatted | reject (would quarantine honest reformatting) |
+| Inline XBRL as reference for revenue and net income | free, covers all 150 filings, independent of the LLM and parser | hand-label all financials (slow); EDGAR companyfacts API (network call per company, frames by period not by filing) |
+| Gold rows count only when verified | a pre-fill is a guess until a person checks it | score against raw pre-fills |
+| Wrong value = FP and FN; quarantine = null prediction | wrong numbers can't hide behind "precision"; failures stay in the denominator | score only filings with a record |
 | Project 1 patterns reused | `.env` config, store interface, ruff + pytest CI, pinned dev deps | — |
 
 ## Real-run metrics
@@ -173,4 +192,5 @@ OXY FY2023). Stage 5 measures these properly.
 
 ## Next step
 
-Stage 5: the gold set and per-field metrics.
+Label the gold set (`python -m evaluation.gold`, check rows, `verified=y`), run
+`python -m evaluation.evaluate`, and record the table in the README.
