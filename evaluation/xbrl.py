@@ -16,7 +16,7 @@ from decimal import Decimal, InvalidOperation
 
 from lxml import etree
 
-XBRL_VERSION = "2"  # 2: revenue = the largest registrant revenue fact (top line)
+XBRL_VERSION = "3"  # 2: revenue = largest registrant revenue fact; 3: net income fallback order
 
 # Revenue is the top line, so the reference is the largest of these for the registrant's year:
 # a component (contract revenue only, one line of business tagged "Revenues") is never larger
@@ -33,10 +33,12 @@ REVENUE_CONCEPTS = (
 # Banks report revenue net of interest expense; their gross figure is not the top line.
 BANK_REVENUE_CONCEPT = "us-gaap:RevenuesNetOfInterestExpense"
 # Net income attributable to the parent first, as the prompt asks for.
+# ProfitLoss includes noncontrolling interests, so it is the last resort (version 2 tried it
+# second and scored SO's attributable net income against the consolidated figure).
 NET_INCOME_CONCEPTS = (
     "us-gaap:NetIncomeLoss",
-    "us-gaap:ProfitLoss",
     "us-gaap:NetIncomeLossAvailableToCommonStockholdersBasic",
+    "us-gaap:ProfitLoss",
 )
 EMPLOYEE_CONCEPTS = ("dei:EntityNumberOfEmployees",)
 

@@ -192,6 +192,23 @@ Still open from review: AEP FY2023 is a subsidiary's figures, MRK FY2023 revenue
 revenue is null for 8 filings, and two employee counts look like a single segment (HON FY2024,
 OXY FY2023). Stage 5 measures these properly.
 
+Stage 5 (source: `eval.field_scores`; qwen3:8b, financials prompt v2, 150 filings, XBRL
+reference, no gold rows yet):
+
+| Date | XBRL reader | Revenue P / R / F1 / exact | Net income P / R / F1 / exact |
+|---|---|---|---|
+| 2026-11-10 | v1 (first concept found) | 0.84 / 0.78 / 0.81 / 0.78 | 0.75 / 0.71 / 0.73 / 0.65 |
+| 2026-11-10 | v2 (largest registrant revenue fact) | 0.89 / 0.83 / 0.86 / 0.81 | 0.75 / 0.71 / 0.73 / 0.65 |
+
+The first run scored the reference as much as the model: AXP, DUK and NEE were right and the
+reader was wrong. After the fix, the mismatches split into (1) a systematic model error: 22 of the
+first 40 net-income mismatches are consolidated net income including noncontrolling interests
+(PG, PEP, UNH, SLB, PLD, TSLA, DUK, BA, HON) instead of the amount attributable to the company,
+fixed in financials prompt v3; (2) wrong rows or years (MRK, NEM, GS 2024, VZ 2024, DIS 2023);
+(3) nulls and the 3 quarantined filings; (4) a definition question for oil companies (CVX, COP,
+OXY): sales and operating revenues or total revenues including other income. The gold set
+settles (4).
+
 ## Next step
 
 Label the gold set (`python -m evaluation.gold`, check rows, `verified=y`), run

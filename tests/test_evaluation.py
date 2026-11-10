@@ -267,3 +267,15 @@ def test_quarantined_filing_counts_as_a_miss(env):
         1,
         0,
     )
+
+
+def test_net_income_prefers_attributable_figures_over_consolidated():
+    body = IXBRL.replace(b"us-gaap:NetIncomeLoss", b"us-gaap:ProfitLoss")
+    body = body.replace(
+        b"</table>",
+        _fact("us-gaap:NetIncomeLossAvailableToCommonStockholdersBasic", "fy24", "88,000",
+              scale="6").encode() + b"</table>",
+    )  # fmt: skip
+    ref = reference_values(body, FY_END)
+    assert ref.net_income_usd == 88_000_000_000
+    assert ref.net_income_concept.endswith("AvailableToCommonStockholdersBasic")
