@@ -199,6 +199,7 @@ reference, no gold rows yet):
 |---|---|---|---|
 | 2026-11-10 | v1 (first concept found) | 0.84 / 0.78 / 0.81 / 0.78 | 0.75 / 0.71 / 0.73 / 0.65 |
 | 2026-11-10 | v2 (largest registrant revenue fact) | 0.89 / 0.83 / 0.86 / 0.81 | 0.75 / 0.71 / 0.73 / 0.65 |
+| 2026-11-10 | v3 (net income fallback order), financials prompt v3 | 0.92 / 0.85 / 0.89 / 0.84 | 0.84 / 0.79 / 0.82 / 0.74 |
 
 The first run scored the reference as much as the model: AXP, DUK and NEE were right and the
 reader was wrong. After the fix, the mismatches split into (1) a systematic model error: 22 of the
@@ -208,6 +209,14 @@ fixed in financials prompt v3; (2) wrong rows or years (MRK, NEM, GS 2024, VZ 20
 (3) nulls and the 3 quarantined filings; (4) a definition question for oil companies (CVX, COP,
 OXY): sales and operating revenues or total revenues including other income. The gold set
 settles (4).
+
+Prompt v3 run (2026-11-10: 150 filings, financials only, 145 valid, 5 quarantined, 12 retries,
+418,099 tokens, 2,141.49 s) raised net-income F1 from 0.73 to 0.82. The two new quarantines (D
+FY2024: negative revenue; WMT FY2023: net income 2,760% of revenue) previously had a null
+revenue, so they were already misses. About 14 net-income mismatches are still consolidated
+figures (UNH, TSLA, PFE, DOW, AMT, AEP, BA); a prompt alone does not fully fix this for an 8B
+model. One known reference error remains: for OXY, which has preferred stock, the reader falls
+back to net income available to common stockholders.
 
 ## Next step
 
