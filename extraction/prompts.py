@@ -8,7 +8,9 @@ from extraction.schema import CATEGORY_DESCRIPTIONS
 PROMPT_VERSIONS = {
     # 2: revenue labels, parent company only, distinct rows (first full run: XOM, NVDA and VZ
     #    returned net income as revenue; JNJ, MRK, NEM returned null for "Sales" lines).
-    "financials": "2",
+    # 3: net income attributable to the company, not consolidated net income (Stage 5: 22 of the
+    #    first 40 net-income mismatches were the line above "attributable to", e.g. PG, UNH).
+    "financials": "3",
     "employees": "1",
     "risk_factors": "1",
 }
@@ -27,8 +29,12 @@ _TASK = {
         "revenue and net income for the fiscal year ending {period_end} (the most recent "
         "column). Revenue is the top line of the income statement and may be labelled 'Total "
         "revenues', 'Revenues', 'Net sales', 'Sales', 'Sales to customers', 'Total net "
-        "revenue' or 'Operating revenues'. Net income is the bottom line ('Net income "
-        "attributable to ...'). They come from different rows and are never the same number. "
+        "revenue' or 'Operating revenues'. Net income is the net income attributable to "
+        "{company} itself: when the statement shows 'Net income', then a line for "
+        "noncontrolling interests, then 'Net income attributable to {company}', use that last "
+        "line, not the consolidated 'Net income' above it. Do not use net income available to "
+        "common stockholders (after preferred dividends) or a per-share amount. Revenue and net "
+        "income come from different rows and are never the same number. "
         "If the excerpt covers several companies, use {company} itself, not a subsidiary. "
         "Give each number as printed in the table, the unit stated in the table header (e.g. "
         "'in millions'), and the table row it came from as the quote."
