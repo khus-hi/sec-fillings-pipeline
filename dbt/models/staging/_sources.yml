@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: meta
+    description: Manifest and run logs written by the Python stages.
+    tables:
+      - name: documents
+        description: One row per 10-K stored in the raw zone (Stage 1).
+        columns:
+          - name: accession_number
+            data_tests: [unique, not_null]
+          - name: sha256
+            data_tests: [not_null]
+      - name: extract_runs
+        description: One row per extraction run (Stage 4).
+
+  - name: extracted
+    description: Validated LLM output and quarantine (Stage 4).
+    tables:
+      - name: filings
+        description: One validated record per document and model.
+      - name: task_results
+        description: One row per document, task and model, ok or quarantined.
+      - name: quarantine
+        description: Tasks that failed validation after every retry, with the reason.

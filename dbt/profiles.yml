@@ -1,0 +1,9 @@
+# No secrets here: the warehouse is a local DuckDB file.
+# Run dbt from this folder; DBT_DUCKDB_PATH overrides the file (CI and tests use a sample one).
+sec_filings:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DBT_DUCKDB_PATH', '../data/warehouse.duckdb') }}"
+      threads: 4

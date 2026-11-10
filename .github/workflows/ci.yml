@@ -1,7 +1,8 @@
 # Runs on every pull request and every push to main. Free for public repositories.
 # No secrets: EDGAR is faked with `responses` and S3 with `moto`, so CI never needs
 # network access to SEC, an email address or AWS keys.
-# Later stages add jobs here: dbt build + tests (Stage 6), DAG integrity (Stage 7).
+# The dbt project is built and tested inside pytest (tests/test_dbt.py) on a sample warehouse.
+# Later stages add jobs here: DAG integrity (Stage 7).
 name: CI
 
 on:

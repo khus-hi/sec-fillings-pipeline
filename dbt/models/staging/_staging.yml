@@ -1,0 +1,81 @@
+version: 2
+
+models:
+  - name: stg_documents
+    description: One row per 10-K filing, from the ingestion manifest.
+    columns:
+      - name: accession_number
+        data_tests: [unique, not_null]
+      - name: sha256
+        data_tests: [not_null]
+      - name: ticker
+        data_tests: [not_null]
+
+  - name: stg_filings
+    description: One validated extraction record per document and model.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [sha256, model]
+    columns:
+      - name: accession_number
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_documents')
+                field: accession_number
+      - name: revenue_usd
+        description: Positive by schema; the test is a backstop if the schema changes.
+        data_tests:
+          - between:
+              arguments:
+                min_value: 1
+                max_value: 5000000000000
+      - name: employee_count
+        data_tests:
+          - between:
+              arguments:
+                min_value: 1
+                max_value: 5000000
+
+  - name: stg_risk_factors
+    description: One row per risk factor in a validated record.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [sha256, model, risk_rank]
+    columns:
+      - name: title
+        data_tests: [not_null]
+      - name: category
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('risk_categories')
+                field: category
+
+  - name: stg_task_results
+    description: One row per document, LLM task and model.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [sha256, task, model]
+    columns:
+      - name: task
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [financials, employees, risk_factors]
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [ok, quarantined]
+      - name: attempts
+        data_tests:
+          - between:
+              arguments:
+                min_value: 1
+                max_value: 3
