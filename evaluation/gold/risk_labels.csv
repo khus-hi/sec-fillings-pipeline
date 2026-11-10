@@ -1,0 +1,81 @@
+accession_number,ticker,fiscal_year,title,gold_category
+0001744489-25-000155,DIS,2025,Macroeconomic Conditions,macroeconomic
+0001744489-25-000155,DIS,2025,Foreign Currency Exchange Rates,macroeconomic
+0001744489-25-000155,DIS,2025,Technological and Consumer Changes,cybersecurity_technology
+0001744489-25-000155,DIS,2025,Consumer Preferences and Tastes,market_competition
+0001744489-25-000155,DIS,2025,Uncontrollable Events,operational_supply_chain
+0001744489-25-000155,DIS,2025,Business Strategy Changes,strategic_reputational
+0001744489-25-000155,DIS,2025,Competitive Pressures,market_competition
+0001744489-25-000155,DIS,2025,Content Contract Renewals,market_competition
+0001628280-26-019436,HD,2026,Strong competition could adversely affect prices and demand for our products and services and could decrease our market share.,market_competition
+0001628280-26-019436,HD,2026,"Our industry is highly competitive, highly fragmented, and evolving.",market_competition
+0001628280-26-019436,HD,2026,"We may not timely identify or effectively respond to customer needs, expectations or trends.",market_competition
+0001628280-26-019436,HD,2026,The execution of initiatives to deliver our interconnected experience could adversely impact our business operations or financial results.,strategic_reputational
+0001628280-26-019436,HD,2026,If we are unable to effectively manage and expand our strategic alliances and relationships with certain suppliers.,operational_supply_chain
+0001628280-26-019436,HD,2026,"Our strategic transactions involve risks, which could have an adverse impact on our business, financial condition and results of operations.",strategic_reputational
+0001628280-26-019436,HD,2026,"A failure of one or more key elements of our technology infrastructure could adversely affect our business, financial results, and reputation.",cybersecurity_technology
+0001628280-26-019436,HD,2026,"Disruptions in our supply chain and other factors affecting the availability and distribution of our merchandise could adversely impact our business, financial results, and reputation.",operational_supply_chain
+0000909832-24-000049,COST,2024,Dependence on U.S. and Canadian Operations,market_competition
+0000909832-24-000049,COST,2024,Failure to Execute Growth Strategy,strategic_reputational
+0000909832-24-000049,COST,2024,Market Share and Warehouse Expansion Risks,market_competition
+0000909832-24-000049,COST,2024,Disruptions in Merchandise Distribution,operational_supply_chain
+0000909832-24-000049,COST,2024,Failure to Adapt to Consumer Preferences,market_competition
+0000909832-24-000049,COST,2024,IT System Failures and Cybersecurity Risks,cybersecurity_technology
+0000909832-24-000049,COST,2024,Payment-Related Risks,cybersecurity_technology
+0000909832-24-000049,COST,2024,Product Safety and Reputation Risks,operational_supply_chain
+0001163165-25-000012,COP,2024,Volatility in Commodity Prices,macroeconomic
+0001163165-25-000012,COP,2024,Competitive Industry,market_competition
+0001163165-25-000012,COP,2024,Failure to Develop Resources,operational_supply_chain
+0001163165-25-000012,COP,2024,GHG Emissions Reduction Challenges,climate_environmental
+0001163165-25-000012,COP,2024,Reserve Estimation Uncertainties,financial_liquidity_credit
+0001163165-25-000012,COP,2024,Government Regulation and Price Controls,regulatory_legal
+0001163165-25-000012,COP,2024,Joint Venture Management Risks,strategic_reputational
+0001163165-25-000012,COP,2024,Cybersecurity Threats,cybersecurity_technology
+0000004962-25-000016,AXP,2024,Business and economic conditions,macroeconomic
+0000004962-25-000016,AXP,2024,Geopolitical conditions,geopolitical
+0000004962-25-000016,AXP,2024,Intense competition in payments industry,market_competition
+0000004962-25-000016,AXP,2024,Regulatory compliance risks,regulatory_legal
+0000004962-25-000016,AXP,2024,Partner relationship risks,market_competition
+0000004962-25-000016,AXP,2024,Competitive pressure on pricing,market_competition
+0000004962-25-000016,AXP,2024,Cybersecurity and fraud risks,cybersecurity_technology
+0000004962-25-000016,AXP,2024,Brand and reputation risks,strategic_reputational
+0000310158-26-000063,MRK,2025,Loss of Market Exclusivity,market_competition
+0000310158-26-000063,MRK,2025,Dependence on Key Products,market_competition
+0000310158-26-000063,MRK,2025,Intense Competition from Generics and Biosimilars,market_competition
+0000310158-26-000063,MRK,2025,Manufacturing Difficulties and Delays,operational_supply_chain
+0000310158-26-000063,MRK,2025,Pricing Pressure in Public and Private Sectors,market_competition
+0000310158-26-000063,MRK,2025,Unfavorable Economic Conditions,macroeconomic
+0000310158-26-000063,MRK,2025,Climate Change and Regulatory Measures,climate_environmental
+0000310158-26-000063,MRK,2025,Failure to Attract and Retain Talent,human_capital
+0001628280-26-004357,BA,2025,Dependence on Commercial Airlines,market_competition
+0001628280-26-004357,BA,2025,Production System Reliability,operational_supply_chain
+0001628280-26-004357,BA,2025,U.S. Government Defense Spending,market_competition
+0001628280-26-004357,BA,2025,Subcontractor and Supplier Performance,operational_supply_chain
+0001628280-26-004357,BA,2025,Labor Union Work Stoppages,human_capital
+0001628280-26-004357,BA,2025,Intense Market Competition,market_competition
+0001628280-26-004357,BA,2025,International Business Risks,geopolitical
+0001628280-26-004357,BA,2025,Accounting Estimates and Assumptions,financial_liquidity_credit
+0000796343-26-000003,ADBE,2025,Technological Innovation and Industry Changes,cybersecurity_technology
+0000796343-26-000003,ADBE,2025,Intense Market Competition,market_competition
+0000796343-26-000003,ADBE,2025,AI Development and Reputational Risk,cybersecurity_technology
+0000796343-26-000003,ADBE,2025,Acquisition and Integration Risks,strategic_reputational
+0000796343-26-000003,ADBE,2025,Key Personnel and Work Model Challenges,human_capital
+0000796343-26-000003,ADBE,2025,IT System Failures and Service Interruptions,cybersecurity_technology
+0000796343-26-000003,ADBE,2025,Cybersecurity and Data Breach Risks,cybersecurity_technology
+0000796343-26-000003,ADBE,2025,Global Economic and Geopolitical Conditions,macroeconomic
+0001751788-25-000012,DOW,2024,Climate Change - Related Risks,climate_environmental
+0001751788-25-000012,DOW,2024,Financial Commitments and Credit Markets,financial_liquidity_credit
+0001751788-25-000012,DOW,2024,Global Economic Considerations,macroeconomic
+0001751788-25-000012,DOW,2024,Pension and Other Postretirement Benefits,financial_liquidity_credit
+0001751788-25-000012,DOW,2024,Supply/Demand Balance,market_competition
+0001751788-25-000012,DOW,2024,Legal and Regulatory Risks,regulatory_legal
+0001751788-25-000012,DOW,2024,Litigation,regulatory_legal
+0001751788-25-000012,DOW,2024,Company Strategy,strategic_reputational
+0001053507-26-000035,AMT,2025,Decreased Leasing Demand,market_competition
+0001053507-26-000035,AMT,2025,Increased Competition,market_competition
+0001053507-26-000035,AMT,2025,Customer Concentration,market_competition
+0001053507-26-000035,AMT,2025,Customer Disputes,market_competition
+0001053507-26-000035,AMT,2025,Customer Consolidation or Exit,market_competition
+0001053507-26-000035,AMT,2025,Technological Changes,cybersecurity_technology
+0001053507-26-000035,AMT,2025,Debt and Liquidity Risks,financial_liquidity_credit
+0001053507-26-000035,AMT,2025,Inflation and Interest Rates,macroeconomic
