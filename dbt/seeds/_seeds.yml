@@ -1,0 +1,12 @@
+version: 2
+
+seeds:
+  - name: risk_categories
+    description: >
+      The 11 risk categories the model may assign, with the one-line definitions shared by the
+      prompt and the labelling guide. Kept in sync with extraction/schema.py by a pytest check.
+    columns:
+      - name: category
+        data_tests: [unique, not_null]
+      - name: label
+        data_tests: [not_null]

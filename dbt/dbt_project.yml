@@ -1,0 +1,29 @@
+# dbt project over the DuckDB warehouse the Python stages write.
+# Sources (written by Python): meta.*, extracted.*. Built here: staging (views), marts (tables).
+name: sec_filings
+version: "1.0.0"
+config-version: 2
+profile: sec_filings
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: target
+clean-targets: [target]
+
+models:
+  sec_filings:
+    staging:
+      +materialized: view
+      +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts
+
+seeds:
+  sec_filings:
+    +schema: reference
+
+flags:
+  send_anonymous_usage_stats: false

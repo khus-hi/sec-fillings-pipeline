@@ -1,0 +1,12 @@
+category,label,definition
+market_competition,Market & competition,"competitors, pricing pressure, demand, customer concentration"
+macroeconomic,Macroeconomic,"recession, inflation, interest rates, currency exchange rates"
+regulatory_legal,Regulatory & legal,"laws, regulation, litigation, tax, antitrust, compliance"
+operational_supply_chain,Operations & supply chain,"suppliers, manufacturing, logistics, outages, quality"
+cybersecurity_technology,Cybersecurity & technology,"cyberattacks, data privacy, IT failures, AI, tech change"
+financial_liquidity_credit,"Financial, liquidity & credit","debt, liquidity, credit ratings, capital, impairments"
+geopolitical,Geopolitical,"war, sanctions, trade policy, tariffs, political instability"
+climate_environmental,Climate & environment,"climate change, weather, emissions rules, energy transition"
+human_capital,Human capital,"hiring and keeping talent, key people, labor relations, unions"
+strategic_reputational,Strategy & reputation,"M&A, strategy execution, brand, reputation, ESG"
+other,Other,anything that fits none of the above

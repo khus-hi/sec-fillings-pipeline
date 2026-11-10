@@ -3,7 +3,7 @@
 Turns unstructured 10-K filings from SEC EDGAR into reliable, queryable tables using a local
 open-source LLM, with validation, retries, a quarantine table and a measured evaluation.
 
-**Status:** Stages 1-5 done (ingestion, parsing, extraction schema, LLM extraction, evaluation). See [PROGRESS.md](PROGRESS.md).
+**Status:** Stages 1-5 done (ingestion, parsing, extraction schema, LLM extraction, evaluation); Stage 6 (dbt) built. See [PROGRESS.md](PROGRESS.md).
 
 ## Architecture
 
@@ -23,7 +23,7 @@ flowchart LR
     W --> EV
 ```
 
-Boxes after the raw zone are planned and get built stage by stage.
+Airflow (Stage 7) and the Streamlit app (Stage 9) are still to be built.
 
 ## Quick start
 
@@ -70,6 +70,13 @@ Run these one at a time. (macOS ships `python3`, not `python`; inside the activa
    python -m evaluation.gold
    python -m evaluation.evaluate
    ```
+8. Build the dbt models and run their tests (staging views, mart tables, 40+ data tests).
+   Close any other program holding the DuckDB file first; DuckDB allows one writer:
+   ```bash
+   cd dbt
+   dbt build
+   cd ..
+   ```
 
 ## Repository layout
 
@@ -83,6 +90,37 @@ Run these one at a time. (macOS ships `python3`, not `python`; inside the activa
 | `dags/` | 7 | Airflow DAG |
 | `app/` | 9 | Streamlit app |
 | `tests/` | all | pytest, fully offline |
+
+## Data model (dbt)
+
+The Python stages write `meta.*` and `extracted.*`; dbt builds everything analytical on top, in
+the same DuckDB file ([`dbt/`](dbt/)).
+
+```mermaid
+flowchart LR
+    MD[(meta.documents)] --> SD[stg_documents]
+    EF[(extracted.filings)] --> SF[stg_filings] & SR[stg_risk_factors]
+    ET[(extracted.task_results<br/>+ quarantine)] --> ST[stg_task_results]
+    SD --> DC[dim_companies]
+    SF & SD & DC --> FF[fct_filings]
+    SR & DC & RC[seed: risk_categories] --> FR[fct_risk_factors]
+    FF & FR & RC --> RT[mart_risk_trends]
+    ST & FF --> MS[mart_model_summary]
+```
+
+| Model | Grain | What it answers |
+|---|---|---|
+| `dim_companies` | company | current name, sector, SEC industry code, years covered |
+| `fct_filings` | filing × model | revenue, net income, employees, net margin, revenue per employee, year-over-year growth |
+| `fct_risk_factors` | risk factor | each risk a filing lists, its rank, category and sector |
+| `mart_risk_trends` | sector × fiscal year × category × model | share of filings citing each risk category, zeros included |
+| `mart_model_summary` | model | task success rate, retries, latency, tokens, cost, field coverage (for Stage 8) |
+
+Tests: keys unique and not null, the grain of every model (`unique_combination`), categories
+against the seed, ranges (net margin, shares, employee counts), plus two cross-model checks: a
+record exists exactly when all three tasks are ok, and every filing is counted once in the risk
+trends. CI builds the project on a sample warehouse written with the Python stages' own DDL, and
+checks that a duplicate company-year fails the build.
 
 ## Extraction schema
 
@@ -256,6 +294,22 @@ per-category precision, recall and F1 (macro-averaged). Every run is stored in `
   the label is not anchored on the answer being graded.
 - **Null is scored.** Precision and recall are defined so that inventing a value, missing one and
   getting one wrong are all penalised, and quarantine counts as a miss.
+
+**Warehouse (Stage 6)**
+- **Python writes the raw tables, dbt owns everything derived.** Extraction is row-by-row,
+  stateful and needs retries, so it stays in Python; aggregates and ratios are set-based and
+  belong in versioned SQL with tests. Both share one DuckDB file, so there is nothing to sync.
+- **Staging as views, marts as tables.** Staging only renames and unnests, so views cost
+  nothing and are always current; marts are read by the app and charts, so they are tables.
+- **Grain tests on every model.** A join that fans out (two filings for one company-year, a
+  company listed twice) silently double-counts every chart; a uniqueness test on the declared
+  grain turns that into a failed build.
+- **Zeros are rows.** The risk-trends mart cross-joins every category with every sector-year,
+  so "no filing cited climate risk" is a 0 rather than a missing row that a chart skips.
+- **Growth only between consecutive years.** If a year is missing, year-over-year growth is
+  null rather than a two-year change mislabelled as one.
+- **Categories live in a seed checked against the Python schema** by a test, so the prompt,
+  the labelling guide and the warehouse cannot drift apart.
 
 ## Failure modes I found
 

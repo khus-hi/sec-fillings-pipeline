@@ -17,7 +17,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | 3 | Extraction schema (Pydantic) | **Done** |
 | 4 | LLM extraction, retries, quarantine | **Done** (150 filings; 3 quarantined) |
 | 5 | Evaluation: hand-checked gold set (32 filings) + XBRL reference (150) | **Done** |
-| 6 | DuckDB + dbt staging → marts, tests | not started |
+| 6 | DuckDB + dbt staging → marts, tests | **Built**; waiting on the first build against the real warehouse |
 | 7 | Airflow DAG (Astro, as in Project 1) | not started |
 | 8 | Optional: local vs hosted model comparison | not started |
 | 9 | Streamlit app | not started |
@@ -98,6 +98,21 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 - Tests: XBRL context selection (prior year, subsidiary, quarter ignored), value formats (scale,
   sign, dashes, comma decimals), scoring rules, reproducible sampling, end-to-end scoring.
 
+## Stage 6: what exists
+
+- `dbt/`: dbt-duckdb project on the same DuckDB file (`dbt/profiles.yml`, no secrets;
+  `DBT_DUCKDB_PATH` overrides the file).
+  - Staging (views): `stg_documents`, `stg_filings`, `stg_risk_factors` (risk list unnested,
+    with rank), `stg_task_results` (with quarantine reason).
+  - Marts (tables): `dim_companies`, `fct_filings` (net margin, revenue per employee,
+    year-over-year growth), `fct_risk_factors`, `mart_risk_trends`, `mart_model_summary`.
+  - Seed `risk_categories` (category, label, definition).
+  - Tests: generic `unique_combination` and `between` macros, relationships, accepted values,
+    and two singular tests (records match ok tasks; trends count every filing once).
+- `tests/test_dbt.py`: builds the project on a sample warehouse made with the real DDL and
+  checks the computed values, that a duplicate company-year fails the build, and that the seed
+  matches `CATEGORY_DESCRIPTIONS`.
+
 ## Decisions and why
 
 | Decision | Why | Alternative rejected |
@@ -121,6 +136,10 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | Inline XBRL as reference for revenue and net income | free, covers all 150 filings, independent of the LLM and parser | hand-label all financials (slow); EDGAR companyfacts API (network call per company, frames by period not by filing) |
 | Gold rows count only when verified | a pre-fill is a guess until a person checks it | score against raw pre-fills |
 | Wrong value = FP and FN; quarantine = null prediction | wrong numbers can't hide behind "precision"; failures stay in the denominator | score only filings with a record |
+| dbt for everything derived, Python for extraction | set-based logic in tested, versioned SQL; one DuckDB file, nothing to sync | ratios and aggregates in pandas (untested, rebuilt by hand) |
+| Grain test on every model | a fan-out join double-counts silently; a uniqueness test fails the build | trust the joins |
+| Risk trends include zero rows | charts and year-over-year comparisons never drop a category | only categories that occur |
+| dbt built inside pytest in CI | one CI job, the sample warehouse uses the Python DDL so schema drift fails fast | separate dbt job with a hand-written fixture |
 | Project 1 patterns reused | `.env` config, store interface, ruff + pytest CI, pinned dev deps | — |
 
 ## Real-run metrics
@@ -243,4 +262,5 @@ match the gold set: the model reported total revenues and other income, which is
 
 ## Next step
 
-Stage 6: DuckDB + dbt staging and marts over `extracted.filings`, with dbt tests.
+Run `cd dbt && dbt build` on the real warehouse, record the pass/warn/fail counts and run time,
+and fix anything the tests catch in the real data. Then Stage 7 (Airflow).

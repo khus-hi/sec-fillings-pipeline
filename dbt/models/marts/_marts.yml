@@ -1,0 +1,91 @@
+version: 2
+
+models:
+  - name: dim_companies
+    description: One row per company, with its current name, sector and SEC industry code.
+    columns:
+      - name: ticker
+        data_tests: [unique, not_null]
+      - name: n_filings
+        data_tests: [not_null]
+
+  - name: fct_filings
+    description: >
+      One row per filing and model: revenue, net income and employees as extracted, plus net
+      margin, revenue per employee and year-over-year changes (consecutive fiscal years only).
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [sha256, model]
+      - unique_combination:
+          arguments:
+            columns: [ticker, fiscal_year, model]
+    columns:
+      - name: ticker
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_companies')
+                field: ticker
+      - name: fiscal_year
+        data_tests: [not_null]
+      - name: net_margin
+        description: Net income / revenue. Schema validators reject margins above 70%.
+        data_tests:
+          - between:
+              arguments:
+                min_value: -10
+                max_value: 0.7
+      - name: revenue_growth_yoy
+        description: Change in revenue against the previous fiscal year, as a fraction.
+        data_tests:
+          - between:
+              arguments:
+                min_value: -0.9
+                max_value: 10
+              config:
+                severity: warn
+
+  - name: fct_risk_factors
+    description: One row per risk factor a filing lists, with sector and category label.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [sha256, model, risk_rank]
+    columns:
+      - name: category
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('risk_categories')
+                field: category
+
+  - name: mart_risk_trends
+    description: >
+      Share of filings in each sector and fiscal year that cite each risk category, with
+      every category present for every sector-year.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [sector, fiscal_year, model, category]
+    columns:
+      - name: share_of_filings
+        data_tests:
+          - not_null
+          - between:
+              arguments:
+                min_value: 0
+                max_value: 1
+
+  - name: mart_model_summary
+    description: One row per model with task success rate, retries, latency, tokens, cost and field coverage.
+    columns:
+      - name: model
+        data_tests: [unique, not_null]
+      - name: task_ok_rate
+        data_tests:
+          - between:
+              arguments:
+                min_value: 0
+                max_value: 1
