@@ -83,8 +83,10 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 ## Stage 5: what exists
 
 - `evaluation/xbrl.py`: reads `<ix:nonFraction>` facts and their contexts from the raw filing;
-  revenue and net income for the registrant's fiscal year (concept priority list, no
-  dimensions, 340 to 380 day duration ending at the period end), employee count when tagged.
+  revenue (the largest registrant revenue fact, or revenue net of interest expense for banks)
+  and net income for the registrant's fiscal year (no dimensions, 340 to 380 day duration
+  ending at the period end), employee count when tagged. `evaluation/inspect_xbrl.py` lists
+  the candidate facts for one filing.
 - `evaluation/gold.py`: samples 30 filings (3 per sector, seed 2026), writes `gold_set.csv`
   pre-filled from XBRL with employee evidence sentences, and `risk_labels.csv` (titles only).
   XBRL values are cached in `eval.xbrl_reference` by content hash and XBRL-reader version.

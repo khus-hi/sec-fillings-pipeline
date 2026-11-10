@@ -213,7 +213,10 @@ per-category precision, recall and F1 (macro-averaged). Every run is stored in `
 - **Inline XBRL as an answer key.** Every 10-K tags its statement numbers with a us-gaap concept
   and a context (entity, period, dimensions). Reading those gives revenue and net income for all
   filings with no human labour and no dependence on the LLM or the parser. Its limit is the
-  company's choice of concept, which is why a hand-checked gold set sits next to it.
+  company's choice of concept, which is why a hand-checked gold set sits next to it. The first
+  version took the first revenue concept found and scored correct answers as wrong (AXP's
+  60.5B total against a 37.2B component); revenue is now the largest registrant revenue fact,
+  or revenue net of interest expense for banks.
 - **Pre-fill, then verify.** Gold rows start from XBRL and count only once a person sets
   `verified=y`; an unchecked pre-fill is never scored as a label.
 - **Blind risk labels.** The labelling file has the model's risk titles but not its categories, so

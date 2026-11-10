@@ -120,21 +120,24 @@ def evaluate_model(con, model: str, refs_by_accession: dict, gold: list[dict], l
     scores: dict[tuple[str, str], FieldScore] = {}
     mismatches: list[tuple] = []
 
-    def numeric(reference: str, field: str, expected: dict[str, int | None]) -> None:
+    def numeric(reference: str, field: str, expected: dict, sources: dict | None = None) -> None:
         pairs = []
         for acc, exp in expected.items():
             pred = preds.get(acc, {}).get(field)
             pairs.append((pred, exp))
             if not numbers_match(pred, exp):
                 p = preds.get(acc, {})
+                source = f" ({sources[acc]})" if sources and sources.get(acc) else ""
                 mismatches.append((reference, field, acc, p.get("ticker"), p.get("fiscal_year"),
-                                   str(pred), str(exp)))  # fmt: skip
+                                   str(pred), f"{exp}{source}"))  # fmt: skip
         scores[(reference, field)] = score_numeric(pairs)
 
     for field in ("revenue_usd", "net_income_usd"):
         expected = {acc: getattr(ref, field) for acc, ref in refs_by_accession.items()
                     if getattr(ref, field) is not None}  # fmt: skip
-        numeric("xbrl", field, expected)
+        concept = field.replace("_usd", "_concept")
+        sources = {acc: getattr(ref, concept) for acc, ref in refs_by_accession.items()}
+        numeric("xbrl", field, expected, sources)
     if gold:
         for field in NUMERIC_FIELDS:
             numeric("gold", field, {g["accession_number"]: g[field] for g in gold})
@@ -230,6 +233,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--model", action="append", help="only this model (repeatable)")
     p.add_argument("--show", type=int, default=25, help="mismatches to print per model")
+    p.add_argument("--field", help="only print mismatches for this field, e.g. net_income_usd")
     args = p.parse_args()
     settings = get_settings()
     con = duckdb.connect(str(settings.duckdb_path))
@@ -248,7 +252,8 @@ def main() -> None:
         print(markdown_table(res["scores"], res["macro_f1"]))
         if res["mismatches"]:
             print(f"\nMismatches ({len(res['mismatches'])}, first {args.show}):")
-            for ref, field, _acc, ticker, fy, pred, exp in res["mismatches"][: args.show]:
+            shown = [m for m in res["mismatches"] if not args.field or m[1] == args.field]
+            for ref, field, _acc, ticker, fy, pred, exp in shown[: args.show]:
                 print(f"  {ref:4} {field:15} {ticker or '?':6} {fy or '?'}  "
                       f"predicted {pred[:70]}  expected {exp}")  # fmt: skip
 

@@ -10,7 +10,7 @@ zone; `python -m parsing.inspect_doc <TICKER> --accession <n>` shows the parsed 
 
 | Column | Rule |
 |---|---|
-| `revenue_usd` | Total revenue for the fiscal year ending `period_end`, in whole dollars, for the registrant itself (not a subsidiary in a combined filing). This is the top line of the income statement: "Total revenues", "Net sales", "Sales to customers", "Total net revenue" or "Operating revenues". For banks, use total net revenue (net of interest expense). Pre-filled from the filing's XBRL; correct it if the tagged concept is not the top line, and set `revenue_source` to `manual`. |
+| `revenue_usd` | Total revenue for the fiscal year ending `period_end`, in whole dollars, for the registrant itself (not a subsidiary in a combined filing). This is the top line of the income statement: "Total revenues", "Net sales", "Sales to customers", "Total net revenue" or "Operating revenues". If the statement shows both a sales line and a larger "Total revenues and other income", use the larger total (the top line). For banks, use total net revenue (net of interest expense). Pre-filled from the filing's XBRL; correct it if the tagged concept is not the top line, and set `revenue_source` to `manual`. |
 | `net_income_usd` | Net income attributable to the company (the parent), same year. Negative for a loss. |
 | `employee_count` | The company-wide total stated in Item 1 (Human Capital), not one segment or country. If the filing states no total, leave it empty: empty means "not in the filing", and a model answer there counts as a false positive. `employee_evidence` shows the candidate sentences. |
 | `verified` | Set to `y` once the row is checked. Only verified rows are scored. |

@@ -16,18 +16,22 @@ from decimal import Decimal, InvalidOperation
 
 from lxml import etree
 
-XBRL_VERSION = "1"
+XBRL_VERSION = "2"  # 2: revenue = the largest registrant revenue fact (top line)
 
-# First concept present wins. "Revenues" is the top line when a company tags it; the
-# contract-revenue concepts are the ASC 606 line most companies use instead.
+# Revenue is the top line, so the reference is the largest of these for the registrant's year:
+# a component (contract revenue only, one line of business tagged "Revenues") is never larger
+# than the total. First tried version 1, "first concept found wins"; it picked AXP's 37.2B
+# component over its 60.5B total, and a narrower contract-revenue tag for DUK and NEE.
 REVENUE_CONCEPTS = (
     "us-gaap:Revenues",
     "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
     "us-gaap:RevenueFromContractWithCustomerIncludingAssessedTax",
-    "us-gaap:RevenuesNetOfInterestExpense",
     "us-gaap:SalesRevenueNet",
     "us-gaap:RegulatedAndUnregulatedOperatingRevenue",
+    "us-gaap:RevenuesNetOfInterestExpense",
 )
+# Banks report revenue net of interest expense; their gross figure is not the top line.
+BANK_REVENUE_CONCEPT = "us-gaap:RevenuesNetOfInterestExpense"
 # Net income attributable to the parent first, as the prompt asks for.
 NET_INCOME_CONCEPTS = (
     "us-gaap:NetIncomeLoss",
@@ -155,12 +159,30 @@ def _first(facts, contexts, concepts, period_end, annual: bool = True):
     return None, None
 
 
+def _registrant_annual(facts, contexts, concepts, period_end) -> list[Fact]:
+    return [
+        f for f in facts
+        if f.concept in concepts
+        and f.context_id in contexts
+        and _annual(contexts[f.context_id], period_end)
+    ]  # fmt: skip
+
+
+def top_line_revenue(facts, contexts, period_end: date) -> tuple[int | None, str | None]:
+    candidates = _registrant_annual(facts, contexts, REVENUE_CONCEPTS, period_end)
+    bank = [f for f in candidates if f.concept == BANK_REVENUE_CONCEPT]
+    if bank or not candidates:
+        return (int(bank[0].value), bank[0].concept) if bank else (None, None)
+    best = max(candidates, key=lambda f: f.value)
+    return int(best.value), best.concept
+
+
 def reference_values(raw: bytes, period_end: date) -> Reference:
     """Revenue and net income for the fiscal year ending `period_end`, for the registrant
     itself (no dimensions, so not a subsidiary or segment), plus the employee count when the
     company tags it."""
     contexts, facts = read_xbrl(raw)
-    revenue, revenue_concept = _first(facts, contexts, REVENUE_CONCEPTS, period_end)
+    revenue, revenue_concept = top_line_revenue(facts, contexts, period_end)
     net_income, net_income_concept = _first(facts, contexts, NET_INCOME_CONCEPTS, period_end)
     employees, _ = _first(facts, contexts, EMPLOYEE_CONCEPTS, period_end, annual=False)
     return Reference(revenue, revenue_concept, net_income, net_income_concept, employees)
