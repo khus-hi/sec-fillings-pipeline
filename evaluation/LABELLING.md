@@ -3,7 +3,7 @@
 `python -m evaluation.gold` writes two files into `evaluation/gold/`. They hold human labels:
 the script never overwrites them unless you pass `--force`.
 
-## gold_set.csv (30 filings, 3 companies per sector)
+## gold_set.csv (32 filings, 3 companies per sector, 2 for Real Estate)
 
 Check each row against the filing itself. Use the EDGAR link or the raw document in the S3 raw
 zone; `python -m parsing.inspect_doc <TICKER> --accession <n>` shows the parsed sections.

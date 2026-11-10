@@ -16,7 +16,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | 2 | Parsing: sections + chunking | **Done** (one known gap: SO Item 7) |
 | 3 | Extraction schema (Pydantic) | **Done** |
 | 4 | LLM extraction, retries, quarantine | **Done** (150 filings; 3 quarantined) |
-| 5 | Evaluation on a 30-document gold set | **Built**; waiting on gold labels and the first scored run |
+| 5 | Evaluation: hand-checked gold set (32 filings) + XBRL reference (150) | **Done** |
 | 6 | DuckDB + dbt staging → marts, tests | not started |
 | 7 | Airflow DAG (Astro, as in Project 1) | not started |
 | 8 | Optional: local vs hosted model comparison | not started |
@@ -87,7 +87,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
   and net income for the registrant's fiscal year (no dimensions, 340 to 380 day duration
   ending at the period end), employee count when tagged. `evaluation/inspect_xbrl.py` lists
   the candidate facts for one filing.
-- `evaluation/gold.py`: samples 30 filings (3 per sector, seed 2026), writes `gold_set.csv`
+- `evaluation/gold.py`: samples 32 filings (3 per sector, 2 for Real Estate, seed 2026), writes `gold_set.csv`
   pre-filled from XBRL with employee evidence sentences, and `risk_labels.csv` (titles only).
   XBRL values are cached in `eval.xbrl_reference` by content hash and XBRL-reader version.
 - `evaluation/metrics.py`: precision, recall, F1 and exact match with null as an answer; 0.5%
@@ -218,7 +218,29 @@ figures (UNH, TSLA, PFE, DOW, AMT, AEP, BA); a prompt alone does not fully fix t
 model. One known reference error remains: for OXY, which has preferred stock, the reader falls
 back to net income available to common stockholders.
 
+Gold set labelled (2026-11-10): 32 rows verified, 80 risk titles categorised. Revenue and net
+income checked against each income statement; 3 revenue pre-fills corrected (COP 2024 and OXY
+2023 to total revenues and other income, D 2025 to total operating revenue, where the largest
+XBRL fact was a contract-revenue subtotal). Employee counts looked up in each filing (11 were
+missing from the evidence sentences, e.g. GS reports "headcount", NEE's total is in Item 1's
+overview, FPL's figure is a subsidiary). Risk categories drafted with a different LLM, blind to
+the model, reviewed by hand (MRK "Loss of Market Exclusivity" moved to market_competition).
+
+First scored run with gold labels (run `10a10389216d`, qwen3:8b, financials prompt v3):
+
+| Reference | Field | n | P | R | F1 | Exact |
+|---|---|---:|---:|---:|---:|---:|
+| gold | revenue_usd | 32 | 0.94 | 0.91 | 0.92 | 0.91 |
+| gold | net_income_usd | 32 | 0.74 | 0.72 | 0.73 | 0.69 |
+| gold | employee_count | 32 | 0.97 | 0.91 | 0.94 | 0.91 |
+| gold | risk_category | 80 | 0.84 | 0.84 | 0.84 | 0.84 |
+| gold | risk_category, macro F1 | | | | 0.86 | |
+| xbrl | revenue_usd | 150 | 0.92 | 0.85 | 0.89 | 0.84 |
+| xbrl | net_income_usd | 150 | 0.84 | 0.79 | 0.82 | 0.74 |
+
+81 mismatches stored in `eval.mismatches`. COP and OXY revenue show up as XBRL mismatches but
+match the gold set: the model reported total revenues and other income, which is the top line.
+
 ## Next step
 
-Label the gold set (`python -m evaluation.gold`, check rows, `verified=y`), run
-`python -m evaluation.evaluate`, and record the table in the README.
+Stage 6: DuckDB + dbt staging and marts over `extracted.filings`, with dbt tests.

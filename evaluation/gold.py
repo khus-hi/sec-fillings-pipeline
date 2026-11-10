@@ -1,7 +1,7 @@
 """Build the gold set: python -m evaluation.gold
 
-Picks 30 filings (3 companies per sector, one fiscal year each, fixed seed) and writes two
-labelling files into evaluation/gold/:
+Picks 32 filings (3 companies per sector, 2 for Real Estate, one fiscal year each, fixed seed)
+and writes two labelling files into evaluation/gold/:
 
 - gold_set.csv: revenue and net income pre-filled from the filing's inline XBRL, the employee
   count pre-filled only when the company tags it, and the candidate employee sentences as
