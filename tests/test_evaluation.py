@@ -81,6 +81,25 @@ def test_concept_priority_falls_back_to_contract_revenue():
     assert ref.revenue_concept.endswith("ExcludingAssessedTax")
 
 
+def _with_extra(*facts: str) -> bytes:
+    return IXBRL.replace(b"</table>", "".join(facts).encode() + b"</table>")
+
+
+def test_revenue_is_the_largest_registrant_revenue_fact():
+    # A component tagged "Revenues" (e.g. one business line) must not beat the total.
+    contract = "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax"
+    ref = reference_values(_with_extra(_fact(contract, "fy24", "60,515", scale="6")).replace(
+        b">391,035<", b">37,218<"), FY_END)  # fmt: skip
+    assert (ref.revenue_usd, ref.revenue_concept) == (60_515_000_000, contract)
+    assert reference_values(IXBRL, FY_END).revenue_usd == 391_035_000_000
+
+
+def test_bank_revenue_is_net_of_interest_expense():
+    net = "us-gaap:RevenuesNetOfInterestExpense"
+    ref = reference_values(_with_extra(_fact(net, "fy24", "158,104", scale="6")), FY_END)
+    assert (ref.revenue_usd, ref.revenue_concept) == (158_104_000_000, net)
+
+
 def test_no_annual_context_means_no_reference():
     ref = reference_values(IXBRL, date(2025, 9, 27))
     assert (ref.revenue_usd, ref.net_income_usd) == (None, None)
