@@ -3,7 +3,7 @@
 Turns unstructured 10-K filings from SEC EDGAR into reliable, queryable tables using a local
 open-source LLM, with validation, retries, a quarantine table and a measured evaluation.
 
-**Status:** Stages 1-3 done (ingestion, parsing, extraction schema); Stage 4 (LLM extraction) built. See [PROGRESS.md](PROGRESS.md).
+**Status:** Stages 1-5 done (ingestion, parsing, extraction schema, LLM extraction, evaluation). See [PROGRESS.md](PROGRESS.md).
 
 ## Architecture
 
@@ -19,7 +19,7 @@ flowchart LR
     W --> D[dbt staging → marts]
     D --> R[Risk categories<br/>by industry and year]
     D --> APP[Streamlit app]
-    G[Gold set, 30 docs] --> EV[evaluation/<br/>precision, recall, F1]
+    G[Gold set, 32 docs] --> EV[evaluation/<br/>precision, recall, F1]
     W --> EV
 ```
 
@@ -113,12 +113,44 @@ review instead of rejecting them.
 
 ## Evaluation results
 
-_Filled in from a real run. No numbers are written here until they are measured._
+`qwen3:8b` on a laptop (Ollama, $0), 150 10-K filings from 50 companies, run on 2026-11-10
+(source: `eval.field_scores`):
+
+| Reference | Field | n | Precision | Recall | F1 | Exact match |
+|---|---|---:|---:|---:|---:|---:|
+| Gold set | Revenue | 32 | 0.94 | 0.91 | **0.92** | 0.91 |
+| Gold set | Net income (attributable to the company) | 32 | 0.74 | 0.72 | **0.73** | 0.69 |
+| Gold set | Employee count | 32 | 0.97 | 0.91 | **0.94** | 0.91 |
+| Gold set | Risk category (11 classes) | 80 | 0.84 | 0.84 | **0.84** accuracy | |
+| Gold set | Risk category, macro F1 over categories | 80 | | | **0.86** | |
+| XBRL, all filings | Revenue | 150 | 0.92 | 0.85 | **0.89** | 0.84 |
+| XBRL, all filings | Net income | 150 | 0.84 | 0.79 | **0.82** | 0.74 |
+
+What the numbers say:
+
+- **Revenue and employee counts are reliable; net income is the weak field.** Most net-income
+  misses are the consolidated figure (including noncontrolling interests) instead of the amount
+  attributable to the company: the two lines sit next to each other in the statement. A prompt
+  change moved XBRL net-income F1 from 0.73 to 0.82 but did not close the gap for an 8B model.
+  With 32 gold rows one filing is worth about 3 points of F1, so the gap between the gold (0.73)
+  and XBRL (0.82) net-income scores is mostly which filings were sampled.
+- **The two references disagree where the definition does.** For COP and OXY the model reported
+  "Total revenues and other income"; the gold set (top line of the income statement) counts that
+  as correct, the XBRL reference (the company's "Revenues" tag) as wrong. For Dominion the
+  largest XBRL revenue fact is a subtotal that is larger than total operating revenue. That is
+  why the gold set exists next to the automatic reference.
+- **Recall is lower than precision on every field** because nulls and quarantined filings score
+  as misses: the pipeline prefers no answer to a wrong one.
+
+How the labels were made: revenue and net income are pre-filled from each filing's XBRL and
+checked against its income statement (3 of 32 revenue values corrected: COP, OXY, D). Employee
+counts were looked up in each filing's Human Capital section. Risk categories were drafted with
+a different LLM, blind to the model's categories, then reviewed by hand. Rules: [evaluation/LABELLING.md](evaluation/LABELLING.md).
 
 **Method.** Two references, reported separately:
 
-- **Gold set:** 30 filings (3 companies per sector, one fiscal year each, fixed seed), checked by
-  hand against the filing. Revenue and net income are pre-filled from the filing's inline XBRL
+- **Gold set:** 32 filings (3 companies per sector, 2 for Real Estate; one fiscal year each,
+  fixed seed), checked by hand against the filing. Revenue and net income are pre-filled from the filing's inline XBRL
   and corrected where the tagged concept is not the top line; employee counts and risk categories
   are labelled by hand, risk categories blind to the model's answer.
 - **XBRL, all filings:** revenue and net income for every filing against the company's own
