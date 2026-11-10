@@ -144,8 +144,9 @@ What the numbers say:
 
 How the labels were made: revenue and net income are pre-filled from each filing's XBRL and
 checked against its income statement (3 of 32 revenue values corrected: COP, OXY, D). Employee
-counts were looked up in each filing's Human Capital section. Risk categories were drafted with
-a different LLM, blind to the model's categories, then reviewed by hand. Rules: [evaluation/LABELLING.md](evaluation/LABELLING.md).
+counts are the company-wide totals stated in each filing's Item 1. Risk categories were drafted
+with a different LLM, blind to the model's categories, then reviewed by hand. Rules:
+[evaluation/LABELLING.md](evaluation/LABELLING.md).
 
 **Method.** Two references, reported separately:
 
