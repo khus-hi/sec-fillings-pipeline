@@ -18,7 +18,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | 4 | LLM extraction, retries, quarantine | **Done** (150 filings; 3 quarantined) |
 | 5 | Evaluation: hand-checked gold set (32 filings) + XBRL reference (150) | **Done** |
 | 6 | DuckDB + dbt staging → marts, tests | **Done** |
-| 7 | Airflow DAG (Astro, as in Project 1) | **Built**; waiting on the first run in Airflow |
+| 7 | Airflow DAG (Astro, as in Project 1) | **Done** (first scheduled run green, 2 min 19 s) |
 | 8 | Optional: local vs hosted model comparison | skipped |
 | 9 | Streamlit app | **Built**; waiting on a look at it with the real warehouse |
 
@@ -296,7 +296,14 @@ Stage 6, first build on the real warehouse (2026-11-10, dbt 1.12.6, dbt-duckdb 1
 filings): 1 seed, 4 views, 5 tables, 43 data tests; PASS=53 WARN=0 ERROR=0 in 0.44 s. No grain,
 range or consistency test fired on the real data, including the record-vs-tasks check.
 
+Stage 7, first run in Airflow (2026-11-10, Astro Runtime 3.3-12 / Airflow 3.3.2, local Docker):
+the scheduled run for the week of 2026-11-09 started on unpause, and all six tasks
+(`check_ollama`, `ingest`, `parse`, `extract`, `evaluate`, `dbt_build`) succeeded in 2 min 19 s
+end to end. It was an incremental run on the existing warehouse: every filing was already
+downloaded, parsed and extracted, so most of that time is the EDGAR check for 50 companies
+plus the evaluation and dbt build. The containers reached SeaweedFS and Ollama on the host
+through `host.docker.internal`.
+
 ## Next step
 
-First run in Airflow (`astro dev start`, trigger `sec_filings_pipeline`), record task durations,
-and look at the app on the real warehouse (`streamlit run app/streamlit_app.py`).
+Look at the app on the real warehouse (`streamlit run app/streamlit_app.py`).
