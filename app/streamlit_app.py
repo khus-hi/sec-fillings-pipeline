@@ -108,17 +108,18 @@ with risks_tab:
     if heat.empty:
         st.info("No risk factors for this selection.")
     else:
-        n_by_year = heat.groupby("fiscal_year")["n_filings"].first()
+        # The filing count goes on the axis: a year with 10 filings moves 10 points per filing.
+        heat = heat.assign(year=lambda d: d["fiscal_year"].astype(str)
+                           + " (n=" + d["n_filings"].astype(int).astype(str) + ")")  # fmt: skip
         st.caption(
-            "Share of filings that list each risk category among their top risk factors. "
-            "Filings per year: "
-            + ", ".join(f"{y}: {int(n)}" for y, n in n_by_year.items())
-            + ". Categories are assigned by the model from a fixed list of 11."
+            "Share of filings that list each risk category among their top risk factors; n is "
+            "the number of filings that year, so a small year swings more. Categories are "
+            "assigned by the model from a fixed list of 11."
         )
         order = (heat.groupby("category_label")["share"].mean()
                  .sort_values(ascending=False).index.tolist())  # fmt: skip
         base = alt.Chart(heat).encode(
-            x=alt.X("fiscal_year:O", title="Fiscal year", axis=alt.Axis(labelAngle=0)),
+            x=alt.X("year:O", title="Fiscal year", axis=alt.Axis(labelAngle=0)),
             y=alt.Y(
                 "category_label:N",
                 sort=order,
