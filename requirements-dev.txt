@@ -1,5 +1,5 @@
 # Local development and CI: runtime deps + test and lint tools, pinned.
--r requirements.txt
+-r requirements-app.txt
 -r requirements-dbt.txt
 moto[s3]==5.2.5
 pytest==9.2.0

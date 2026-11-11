@@ -3,7 +3,7 @@
 Turns unstructured 10-K filings from SEC EDGAR into reliable, queryable tables using a local
 open-source LLM, with validation, retries, a quarantine table and a measured evaluation.
 
-**Status:** Stages 1-6 done (ingestion, parsing, extraction schema, LLM extraction, evaluation, dbt); Stage 7 (Airflow) built. See [PROGRESS.md](PROGRESS.md).
+**Status:** Stages 1-7 done (ingestion, parsing, extraction schema, LLM extraction, evaluation, dbt, Airflow); Stage 9 (Streamlit app) built. See [PROGRESS.md](PROGRESS.md).
 
 ## Architecture
 
@@ -23,7 +23,6 @@ flowchart LR
     W --> EV
 ```
 
-The Streamlit app (Stage 9) is still to be built.
 
 ## Quick start
 
@@ -84,6 +83,13 @@ Run these one at a time. (macOS ships `python3`, not `python`; inside the activa
    ```
    Then open the Airflow UI URL it prints and trigger `sec_filings_pipeline`. Details in
    [docs/airflow.md](docs/airflow.md).
+10. Explore the results in the app (reads the warehouse read-only):
+    ```bash
+    streamlit run app/streamlit_app.py
+    ```
+    Three tabs: risk categories by sector and year (with the risk titles behind each cell),
+    one company's figures and risk factors, and extraction quality (accuracy against the gold
+    set and XBRL, retries, cost, the quarantined tasks with their reasons).
 
 ## Repository layout
 
@@ -333,6 +339,17 @@ per-category precision, recall and F1 (macro-averaged). Every run is stored in `
 - **Same warehouse inside and outside Docker.** The data folder is mounted into the scheduler
   and the containers reach SeaweedFS and Ollama on the host, so a run from the terminal and a
   run in Airflow never diverge.
+
+**App (Stage 9)**
+- **SQL in plain functions, layout in the app file.** `app/queries.py` is tested against a
+  warehouse built by the real dbt project; `app/streamlit_app.py` only lays out the page, and
+  an AppTest run checks it renders and its filters work.
+- **Read-only and short-lived connections.** The app can't change the warehouse and never holds
+  the single writer lock the pipeline needs.
+- **Shares re-aggregated, not averaged.** "All sectors" divides total citing filings by total
+  filings, so a sector with 2 filings doesn't weigh as much as one with 15.
+- **Quality on the same page as the results.** Accuracy, quarantined tasks and their reasons
+  sit next to the charts, so nobody reads the numbers without knowing how reliable they are.
 
 ## Failure modes I found
 
