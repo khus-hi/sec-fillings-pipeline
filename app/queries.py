@@ -128,20 +128,24 @@ def model_summary(con) -> pd.DataFrame:
 
 
 def eval_scores(con, model: str) -> pd.DataFrame:
-    """Field scores from the model's latest evaluation run; empty if none has run yet."""
+    """Field scores from the model's latest evaluation run for each reference; empty if none
+    has run yet. Per reference, so a run made without the gold files (only the XBRL check) does
+    not hide the last gold scores."""
     if not _has_table(con, "eval", "field_scores"):
         return pd.DataFrame()
     return con.execute(
         """
         WITH latest AS (
-            SELECT r.run_id FROM eval.runs AS r
-            WHERE r.model = $model ORDER BY r.evaluated_at DESC LIMIT 1
+            SELECT s.reference, arg_max(s.run_id, r.evaluated_at) AS run_id
+            FROM eval.field_scores AS s JOIN eval.runs AS r USING (run_id, model)
+            WHERE s.model = $model
+            GROUP BY s.reference
         )
-        SELECT reference, field, n, precision, recall, f1, exact_match
-        FROM eval.field_scores
-        WHERE model = $model AND run_id = (SELECT run_id FROM latest)
-          AND (field NOT LIKE 'risk_category:%' OR field = 'risk_category:macro')
-        ORDER BY reference DESC, field
+        SELECT s.reference, s.field, s.n, s.precision, s.recall, s.f1, s.exact_match
+        FROM eval.field_scores AS s JOIN latest USING (reference, run_id)
+        WHERE s.model = $model
+          AND (s.field NOT LIKE 'risk_category:%' OR s.field = 'risk_category:macro')
+        ORDER BY s.reference DESC, s.field
         """,
         {"model": model},
     ).df()

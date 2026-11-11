@@ -37,6 +37,14 @@ def warehouse(tmp_path_factory):
             "VALUES ('r1', ?, ?, ?, 32, ?)",
             [MODEL, ref, field, f1],
         )
+    # A later run without the gold files scores only XBRL; the gold scores of r1 still apply.
+    con.execute("INSERT INTO eval.runs VALUES ('r2', ?, 'v', '3', 0, 0, 0.005, ?)",
+                [MODEL, datetime(2026, 2, 1)])  # fmt: skip
+    con.execute(
+        "INSERT INTO eval.field_scores (run_id, model, reference, field, n, f1) "
+        "VALUES ('r2', ?, 'xbrl', 'revenue_usd', 150, 0.9)",
+        [MODEL],
+    )
     con.close()
     return path
 
@@ -88,10 +96,13 @@ def test_company_views(con):
     assert q.company_filings(con, MODEL, "CCC").empty  # quarantined, so no record
 
 
-def test_eval_scores_latest_run_without_per_label_rows(con):
+def test_eval_scores_latest_run_per_reference_without_per_label_rows(con):
     scores = q.eval_scores(con, MODEL)
     assert set(scores["field"]) == {"revenue_usd", "risk_category", "risk_category:macro"}
     assert len(scores) == 4
+    by_ref = scores.set_index(["reference", "field"])["f1"]
+    assert by_ref[("xbrl", "revenue_usd")] == 0.9  # from the newer run
+    assert by_ref[("gold", "revenue_usd")] == 0.92  # kept from the run that had gold rows
 
 
 def test_eval_scores_empty_before_any_evaluation(tmp_path):
