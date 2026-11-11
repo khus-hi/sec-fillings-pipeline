@@ -3,7 +3,7 @@
 Turns unstructured 10-K filings from SEC EDGAR into reliable, queryable tables using a local
 open-source LLM, with validation, retries, a quarantine table and a measured evaluation.
 
-**Status:** Stages 1-7 done (ingestion, parsing, extraction schema, LLM extraction, evaluation, dbt, Airflow); Stage 9 (Streamlit app) built. See [PROGRESS.md](PROGRESS.md).
+**Status:** done: ingestion, parsing, extraction schema, LLM extraction, evaluation, dbt, Airflow and the Streamlit app (the optional hosted-model comparison was skipped). See [PROGRESS.md](PROGRESS.md).
 
 ## Architecture
 
