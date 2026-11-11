@@ -1,0 +1,17 @@
+# Never bake secrets or local data into the image. Astro passes .env to the containers as
+# environment variables at runtime, and data/ is mounted (docker-compose.override.yml).
+.env
+.venv
+venv/
+data/
+.git
+.github
+**/__pycache__
+.pytest_cache
+.ruff_cache
+dbt/target
+dbt/logs
+dbt/dbt_packages
+dbt/.user.yml
+logs/
+airflow_settings.yaml

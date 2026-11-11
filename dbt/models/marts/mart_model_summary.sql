@@ -1,5 +1,5 @@
 -- One row per model: reliability, cost and field coverage of its extraction.
--- The basis for comparing a local and a hosted model on the same documents (Stage 8).
+-- The basis for comparing models (e.g. a local and a hosted one) on the same documents.
 with tasks as (
     select
         model,
