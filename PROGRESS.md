@@ -20,7 +20,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | 6 | DuckDB + dbt staging → marts, tests | **Done** |
 | 7 | Airflow DAG (Astro, as in Project 1) | **Built**; waiting on the first run in Airflow |
 | 8 | Optional: local vs hosted model comparison | skipped |
-| 9 | Streamlit app | not started |
+| 9 | Streamlit app | **Built**; waiting on a look at it with the real warehouse |
 
 ## Stage 1: what exists
 
@@ -129,6 +129,18 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
   installs Airflow 3.3.2 on Python 3.12 with Airflow's constraints and runs every non-dbt test
   there too.
 - `docs/airflow.md`: how to run it and how the containers reach the host.
+
+## Stage 9: what exists
+
+- `app/queries.py`: read-only queries over the marts and `eval.*` (overview, risk heatmap with
+  all-sector re-aggregation, risk titles per category, company figures and risks, latest
+  evaluation scores, quarantined tasks).
+- `app/streamlit_app.py`: three tabs (Risk trends, Companies, Extraction quality); cached
+  queries keyed by warehouse path; one-hue charts, a heatmap with a table view.
+- `requirements-app.txt` (streamlit 1.67.0, as in Project 1), `.streamlit/config.toml` (no
+  usage stats, headless).
+- `tests/test_app.py`: queries on a dbt-built sample warehouse, read-only connection, empty
+  evaluation, and AppTest runs of the app (with filters, and without a warehouse).
 
 ## Decisions and why
 
@@ -287,4 +299,4 @@ range or consistency test fired on the real data, including the record-vs-tasks 
 ## Next step
 
 First run in Airflow (`astro dev start`, trigger `sec_filings_pipeline`), record task durations,
-then Stage 9 (Streamlit app on the marts).
+and look at the app on the real warehouse (`streamlit run app/streamlit_app.py`).
