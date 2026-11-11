@@ -4,6 +4,8 @@
 # Local data: raw filings, DuckDB warehouse, MinIO volume
 data/
 *.duckdb
+# ...except the small read-only snapshot the hosted app reads (app/export_snapshot.py)
+!app/snapshot/warehouse.duckdb
 *.duckdb.wal
 
 # Python

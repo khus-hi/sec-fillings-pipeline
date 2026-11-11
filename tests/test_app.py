@@ -134,6 +134,40 @@ def test_app_without_warehouse(tmp_path, monkeypatch):
     from streamlit.testing.v1 import AppTest
 
     monkeypatch.setenv("DUCKDB_PATH", str(tmp_path / "missing.duckdb"))
+    monkeypatch.setenv("APP_SNAPSHOT", str(tmp_path / "no-snapshot.duckdb"))
     at = AppTest.from_file(str(REPO_ROOT / "app" / "streamlit_app.py"), default_timeout=60).run()
     assert not at.exception
     assert "Run the pipeline first" in at.error[0].value
+
+
+def test_snapshot_has_what_the_app_reads(warehouse, tmp_path):
+    from app.export_snapshot import export
+
+    snap = tmp_path / "snapshot" / "warehouse.duckdb"
+    counts = export(warehouse, snap)
+    assert counts["marts.fct_filings"] == 3
+    with q.connect(snap) as c:
+        assert q.models(c) == [MODEL]
+        assert q.quarantined(c, MODEL)["ticker"].tolist() == ["CCC"]
+        assert not q.eval_scores(c, MODEL).empty
+        assert not q.risk_heatmap(c, MODEL, None).empty
+        # Nothing beyond the listed tables is copied (no raw text or model output).
+        tables = c.execute(
+            "SELECT table_schema || '.' || table_name FROM information_schema.tables"
+        ).fetchall()
+        assert sorted(t[0] for t in tables) == sorted(counts)
+
+
+def test_app_falls_back_to_snapshot(warehouse, tmp_path, monkeypatch):
+    from streamlit.testing.v1 import AppTest
+
+    from app.export_snapshot import export
+
+    snap = tmp_path / "warehouse.duckdb"
+    export(warehouse, snap)
+    monkeypatch.setenv("DUCKDB_PATH", str(tmp_path / "missing.duckdb"))
+    monkeypatch.setenv("APP_SNAPSHOT", str(snap))
+    at = AppTest.from_file(str(REPO_ROOT / "app" / "streamlit_app.py"), default_timeout=60).run()
+    assert not at.exception
+    assert at.metric[0].value == "3"
+    assert any("Hosted demo" in c.value for c in at.caption)

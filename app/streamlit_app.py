@@ -8,6 +8,7 @@ All SQL lives in app/queries.py.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -19,6 +20,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import queries as q  # noqa: E402
+from app.export_snapshot import SNAPSHOT_PATH  # noqa: E402
 from ingestion.config import get_settings  # noqa: E402
 
 BAR = "#2a78d6"  # one series per chart, so one hue
@@ -27,6 +29,11 @@ ALL = "All sectors"
 
 st.set_page_config(page_title="SEC 10-K Extraction", layout="wide")
 settings = get_settings()
+# The local warehouse when the pipeline has run here; otherwise (the hosted demo) the committed
+# snapshot written by `python -m app.export_snapshot` (APP_SNAPSHOT overrides it in tests).
+SNAPSHOT = Path(os.getenv("APP_SNAPSHOT") or SNAPSHOT_PATH)
+IS_SNAPSHOT = not settings.duckdb_path.exists() and SNAPSHOT.exists()
+DB_PATH = SNAPSHOT if IS_SNAPSHOT else settings.duckdb_path
 
 
 @st.cache_data(ttl=300)  # the warehouse changes at most weekly
@@ -36,7 +43,7 @@ def _load(db_path: str, name: str, *args):
 
 
 def load(name: str, *args):
-    return _load(str(settings.duckdb_path), name, *args)  # the path is part of the cache key
+    return _load(str(DB_PATH), name, *args)  # the path is part of the cache key
 
 
 def billions(x) -> str:
@@ -91,6 +98,11 @@ st.caption(
     f"sectors, fiscal years {ov['first_year']} to {ov['last_year']}, read by `{model}` running "
     "locally. Every value passed schema validation; failures are quarantined, not guessed."
 )
+if IS_SNAPSHOT:
+    st.caption(
+        "Hosted demo: a read-only snapshot of the warehouse. The pipeline itself (EDGAR, Ollama, "
+        "Airflow, dbt) runs locally; see the [repository](https://github.com/khus-hi/sec-fillings-pipeline)."
+    )
 c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("Filings", f"{ov['filings']:,}")
 c2.metric("Companies", f"{ov['companies']:,}")

@@ -91,6 +91,21 @@ Run these one at a time. (macOS ships `python3`, not `python`; inside the activa
     one company's figures and risk factors, and extraction quality (accuracy against the gold
     set and XBRL, retries, cost, the quarantined tasks with their reasons).
 
+### Hosted app
+
+The pipeline needs EDGAR, Ollama and a local warehouse, so the hosted app on Streamlit Community
+Cloud reads a small read-only snapshot instead: the dbt marts, the evaluation scores and the
+quarantine reasons, with no filing text or model output. To refresh it after a pipeline run:
+
+```bash
+python -m app.export_snapshot
+git add app/snapshot/warehouse.duckdb && git commit -m "Refresh app snapshot" && git push
+```
+
+The app uses `data/warehouse.duckdb` when it exists and falls back to the snapshot otherwise.
+To deploy: on [share.streamlit.io](https://share.streamlit.io) create an app from this
+repository, branch `main`, main file `app/streamlit_app.py` (it installs `app/requirements.txt`).
+
 ## Repository layout
 
 | Folder | Stage | Contents |
