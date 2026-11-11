@@ -41,7 +41,7 @@ Run these one at a time. (macOS ships `python3`, not `python`; inside the activa
    ```
 3. Start the local S3 server (file browser at http://localhost:8888):
    ```bash
-   docker compose up -d
+   docker compose -f seaweedfs.yml up -d
    ```
 4. Ingest, then run again to prove idempotency (the second run downloads 0):
    ```bash

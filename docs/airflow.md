@@ -7,7 +7,7 @@ server and UI, and a Postgres metadata database. Free, and entirely on your mach
 ## Before you start
 
 1. Docker Desktop running, and the Astro CLI installed (`brew install astro`).
-2. The local S3 server running: `docker compose up -d`.
+2. The local S3 server running: `docker compose -f seaweedfs.yml up -d`.
 3. The Ollama app open, with the model pulled (`ollama pull qwen3:8b`).
 4. `.env` set up as in the README. Astro passes `.env` into the containers as environment
    variables, so nothing secret is baked into the image.

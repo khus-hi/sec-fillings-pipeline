@@ -32,7 +32,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
   sha256) and `meta.ingest_runs` (one row per run with counts and timing).
 - `ingestion/ingest.py`: the CLI. `--tickers`, `--per-company`, `--limit`. Exit code 1 if anything failed.
 - `ingestion/companies.csv`: 50 tickers across 11 sectors (5 each, except Materials 3 and Real Estate 2). Optional `ciks` column pins CIKs (XOM: new holdco + old entity).
-- `docker-compose.yml`: SeaweedFS S3 server on :8333, file browser on :8888.
+- `seaweedfs.yml` (was `docker-compose.yml`): SeaweedFS S3 server on :8333, file browser on :8888.
 - `tests/`: 35 offline tests (fake EDGAR via `responses`, fake S3 via `moto`).
 
 ## Stage 2: what exists
