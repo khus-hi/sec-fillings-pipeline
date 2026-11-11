@@ -18,8 +18,8 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | 4 | LLM extraction, retries, quarantine | **Done** (150 filings; 3 quarantined) |
 | 5 | Evaluation: hand-checked gold set (32 filings) + XBRL reference (150) | **Done** |
 | 6 | DuckDB + dbt staging → marts, tests | **Done** |
-| 7 | Airflow DAG (Astro, as in Project 1) | not started |
-| 8 | Optional: local vs hosted model comparison | not started |
+| 7 | Airflow DAG (Astro, as in Project 1) | **Built**; waiting on the first run in Airflow |
+| 8 | Optional: local vs hosted model comparison | skipped |
 | 9 | Streamlit app | not started |
 
 ## Stage 1: what exists
@@ -113,6 +113,23 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
   checks the computed values, that a duplicate company-year fails the build, and that the seed
   matches `CATEGORY_DESCRIPTIONS`.
 
+## Stage 7: what exists
+
+- Repository root is an Astro project: `Dockerfile` (Astro Runtime 3.3 = Airflow 3.3.2, dbt in
+  its own virtualenv), `.astro/config.yaml`, `packages.txt`, `.dockerignore`, `include/`,
+  `plugins/`, and `docker-compose.override.yml` (mounts `data/`, points S3 and Ollama at the
+  host).
+- `dags/sec_filings_pipeline.py`: weekly DAG, `check_ollama` + `ingest -> parse -> extract ->
+  evaluate -> dbt_build`, per-task retries and timeouts, `max_active_runs=1`.
+- `pipeline/steps.py`: one function per step, each opening and closing its own DuckDB
+  connection and returning a small summary; `StepFailed` for steps that leave work undone.
+- `requirements.txt` holds only what the image needs; dbt moved to `requirements-dbt.txt`.
+- Tests: `tests/test_pipeline_steps.py` (Ollama check, failure policy, dbt step on a sample
+  warehouse), `tests/test_dag_integrity.py` (imports and wiring). CI job "Airflow DAG integrity"
+  installs Airflow 3.3.2 on Python 3.12 with Airflow's constraints and runs every non-dbt test
+  there too.
+- `docs/airflow.md`: how to run it and how the containers reach the host.
+
 ## Decisions and why
 
 | Decision | Why | Alternative rejected |
@@ -124,7 +141,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | Manifest in DuckDB | queryable, same warehouse as Stage 6 | JSON file in the bucket (no SQL, race-prone) |
 | Exclude 10-K/A | amendments are partial, would double-count a year | include and dedupe later |
 | 3 filings per company default | gives year-over-year view for the Stage 6 mart | 1 (no trend) |
-| SeaweedFS in docker-compose (standalone for now) | S3 API locally at $0; MinIO was the first pick but its Docker images are no longer published (pull fails) | MinIO (unavailable), real S3 (costs, credentials); will fold into Astro's compose in Stage 7 |
+| SeaweedFS in its own docker-compose | S3 API locally at $0; MinIO was the first pick but its Docker images are no longer published (pull fails). Kept separate from Astro's containers, reached at `host.docker.internal`, so its volume (the raw filings) survives `astro dev kill` | MinIO (unavailable), real S3 (costs, credentials), a service in Astro's compose (new empty volume, re-download everything) |
 | Manifest facts (CIK, period) never asked of the LLM | can't be hallucinated; fewer tokens | one big "extract everything" schema |
 | Money as value + unit, converted in code | small models mis-scale numbers by 1,000x | ask for dollars directly |
 | One schema per task (financials, employees, risks) | each call fits 8k context with its own section; partial success possible | single schema over the whole filing |
@@ -140,6 +157,9 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | Grain test on every model | a fan-out join double-counts silently; a uniqueness test fails the build | trust the joins |
 | Risk trends include zero rows | charts and year-over-year comparisons never drop a category | only categories that occur |
 | dbt built inside pytest in CI | one CI job, the sample warehouse uses the Python DDL so schema drift fails fast | separate dbt job with a hand-written fixture |
+| Steps as plain functions, DAG only wires them | testable without Airflow; the DAG reads as a schedule and a failure policy | logic inside `@task` bodies |
+| Retries only where they can help | network and model server retry; parser bugs and failing tests don't | the same retry count everywhere |
+| Weekly schedule, `catchup=False` | 10-Ks are annual; idempotent stages make an empty run nearly free | daily (no benefit), catchup (EDGAR has no "as of" view) |
 | Project 1 patterns reused | `.env` config, store interface, ruff + pytest CI, pinned dev deps | — |
 
 ## Real-run metrics
@@ -266,4 +286,5 @@ range or consistency test fired on the real data, including the record-vs-tasks 
 
 ## Next step
 
-Stage 7: an Airflow DAG (Astro) that runs ingest → parse → extract → evaluate → dbt build.
+First run in Airflow (`astro dev start`, trigger `sec_filings_pipeline`), record task durations,
+then Stage 9 (Streamlit app on the marts).

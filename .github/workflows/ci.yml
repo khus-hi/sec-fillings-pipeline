@@ -2,7 +2,6 @@
 # No secrets: EDGAR is faked with `responses` and S3 with `moto`, so CI never needs
 # network access to SEC, an email address or AWS keys.
 # The dbt project is built and tested inside pytest (tests/test_dbt.py) on a sample warehouse.
-# Later stages add jobs here: DAG integrity (Stage 7).
 name: CI
 
 on:
@@ -47,3 +46,27 @@ jobs:
           cache-dependency-path: requirements*.txt
       - run: pip install -r requirements-dev.txt
       - run: pytest -v
+
+  dag:
+    name: Airflow DAG integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AIRFLOW_VERSION: "3.3.2"  # the Airflow version in Astro Runtime 3.3 (see Dockerfile)
+      AIRFLOW_PYTHON: "3.12"    # the Python version in that image
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.AIRFLOW_PYTHON }}
+      # Airflow publishes a tested set of dependency versions ("constraints"); installing
+      # against it is the supported way to get a working Airflow from pip.
+      - run: >
+          pip install "apache-airflow==${AIRFLOW_VERSION}"
+          --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${AIRFLOW_PYTHON}.txt"
+      # The pipeline's own dependencies on top, as the Astro image installs them, then every
+      # test that doesn't need dbt: proves the pipeline code also works in Airflow's Python.
+      - run: pip install -r requirements.txt pytest==9.2.0 responses==0.26.3 "moto[s3]==5.2.5"
+      - run: pytest -v --ignore=tests/test_dbt.py
+        env:
+          AIRFLOW_HOME: ${{ runner.temp }}/airflow

@@ -1,0 +1,3 @@
+# Stage 6: dbt models on the same DuckDB file. Same versions as the Airflow image's dbt venv.
+dbt-core==1.12.6
+dbt-duckdb==1.11.1

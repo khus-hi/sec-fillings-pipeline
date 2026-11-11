@@ -3,7 +3,7 @@
 Turns unstructured 10-K filings from SEC EDGAR into reliable, queryable tables using a local
 open-source LLM, with validation, retries, a quarantine table and a measured evaluation.
 
-**Status:** Stages 1-6 done (ingestion, parsing, extraction schema, LLM extraction, evaluation, dbt). See [PROGRESS.md](PROGRESS.md).
+**Status:** Stages 1-6 done (ingestion, parsing, extraction schema, LLM extraction, evaluation, dbt); Stage 7 (Airflow) built. See [PROGRESS.md](PROGRESS.md).
 
 ## Architecture
 
@@ -23,7 +23,7 @@ flowchart LR
     W --> EV
 ```
 
-Airflow (Stage 7) and the Streamlit app (Stage 9) are still to be built.
+The Streamlit app (Stage 9) is still to be built.
 
 ## Quick start
 
@@ -77,6 +77,13 @@ Run these one at a time. (macOS ships `python3`, not `python`; inside the activa
    dbt build
    cd ..
    ```
+9. Or run every stage on a schedule in Airflow (Docker + Astro CLI). With the S3 server and
+   the Ollama app running:
+   ```bash
+   astro dev start
+   ```
+   Then open the Airflow UI URL it prints and trigger `sec_filings_pipeline`. Details in
+   [docs/airflow.md](docs/airflow.md).
 
 ## Repository layout
 
@@ -87,7 +94,8 @@ Run these one at a time. (macOS ships `python3`, not `python`; inside the activa
 | `extraction/` | 3, 4 | Pydantic schema, LLM client, retries, quarantine |
 | `evaluation/` | 5 | XBRL reference values, gold set and labelling rules, metrics |
 | `dbt/` | 6 | staging and marts on DuckDB |
-| `dags/` | 7 | Airflow DAG |
+| `pipeline/` | 7 | the pipeline steps the DAG calls, testable without Airflow |
+| `dags/` | 7 | Airflow DAG (the repository root is an Astro project) |
 | `app/` | 9 | Streamlit app |
 | `tests/` | all | pytest, fully offline |
 
@@ -114,7 +122,7 @@ flowchart LR
 | `fct_filings` | filing × model | revenue, net income, employees, net margin, revenue per employee, year-over-year growth |
 | `fct_risk_factors` | risk factor | each risk a filing lists, its rank, category and sector |
 | `mart_risk_trends` | sector × fiscal year × category × model | share of filings citing each risk category, zeros included |
-| `mart_model_summary` | model | task success rate, retries, latency, tokens, cost, field coverage (for Stage 8) |
+| `mart_model_summary` | model | task success rate, retries, latency, tokens, cost, field coverage, to compare models on the same documents |
 
 Tests: keys unique and not null, the grain of every model (`unique_combination`), categories
 against the seed, ranges (net margin, shares, employee counts), plus two cross-model checks: a
@@ -204,7 +212,7 @@ tenths of a billion). Exact match is the share of filings where prediction and r
 identical, both-null included. A quarantined filing scores as a null prediction, so quarantine
 costs recall rather than disappearing from the denominator. Risk categories: accuracy and
 per-category precision, recall and F1 (macro-averaged). Every run is stored in `eval.runs`,
-`eval.field_scores` and `eval.mismatches`, per model, so Stage 8 compares models on the same rows.
+`eval.field_scores` and `eval.mismatches`, per model, so different models are compared on the same rows.
 
 ## Design decisions
 
@@ -276,7 +284,7 @@ per-category precision, recall and F1 (macro-averaged). Every run is stored in `
   hash, model and *task* version (schema version + that task's prompt version), and the stored
   answer still passes today's validators. Bumping one prompt re-runs only that task (the
   financials fix re-ran 150 calls, not 450); a stricter rule re-runs only the answers it now
-  rejects; switching model keeps both results side by side (for Stage 8).
+  rejects; switching model keeps both results side by side for comparison.
 - **Per-task log line and run table.** Model, latency, prompt/answer tokens, cost, attempts,
   warnings and errors per task (JSON logs + `extracted.task_results`), totals per run in
   `meta.extract_runs`.
@@ -311,6 +319,20 @@ per-category precision, recall and F1 (macro-averaged). Every run is stored in `
   null rather than a two-year change mislabelled as one.
 - **Categories live in a seed checked against the Python schema** by a test, so the prompt,
   the labelling guide and the warehouse cannot drift apart.
+
+**Orchestration (Stage 7)**
+- **One task per stage, logic outside the DAG file.** The DAG only says order, schedule and
+  failure policy; each step is a plain function in `pipeline/steps.py` with its own tests, so
+  the logic is testable without Airflow and a failure retries only the stage that failed.
+- **Idempotent stages make the schedule cheap.** Accession numbers, content hashes and task
+  versions mean a weekly run with no new filings does no parsing and no LLM calls.
+- **Retry only what retrying can fix.** Network steps and the model server retry with
+  backoff; a parser bug or a failing dbt test does not, because the result would be the same.
+- **Fail fast on the model server.** A check runs alongside ingestion and stops the run before
+  extraction, with the command that fixes it, instead of 150 documents each timing out.
+- **Same warehouse inside and outside Docker.** The data folder is mounted into the scheduler
+  and the containers reach SeaweedFS and Ollama on the host, so a run from the terminal and a
+  run in Airflow never diverge.
 
 ## Failure modes I found
 

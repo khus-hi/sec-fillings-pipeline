@@ -1,0 +1,15 @@
+# Astro CLI merges this file into the Airflow containers it starts (`astro dev start`).
+# Tasks run in the scheduler container, so that is the one that needs the host's services.
+services:
+  scheduler:
+    volumes:
+      # The same warehouse and local raw zone as the command line, so a run in Airflow and a
+      # run from the terminal see the same data.
+      - ./data:/usr/local/airflow/data
+    environment:
+      # .env says localhost, which inside a container is the container itself. These point
+      # at the Mac instead: SeaweedFS (docker compose up -d) and the Ollama app.
+      S3_ENDPOINT_URL: http://host.docker.internal:8333
+      OLLAMA_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # needed on Linux; Docker Desktop has it built in
