@@ -8,7 +8,7 @@ services:
       - ./data:/usr/local/airflow/data
     environment:
       # .env says localhost, which inside a container is the container itself. These point
-      # at the Mac instead: SeaweedFS (docker compose up -d) and the Ollama app.
+      # at the Mac instead: SeaweedFS (seaweedfs.yml) and the Ollama app.
       S3_ENDPOINT_URL: http://host.docker.internal:8333
       OLLAMA_URL: http://host.docker.internal:11434
     extra_hosts:

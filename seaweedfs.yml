@@ -1,13 +1,18 @@
 # Local S3: SeaweedFS speaks the S3 API, so boto3 code written for AWS works unchanged.
 # (We started with MinIO, but MinIO stopped publishing free Docker images, so pulls fail.)
 #
-#   docker compose up -d          start it
-#   open http://localhost:8888    file browser: look under /buckets/sec-raw
-#   docker compose down           stop it (data survives in the s3-data volume)
+#   docker compose -f seaweedfs.yml up -d    start it
+#   open http://localhost:8888               file browser: look under /buckets/sec-raw
+#   docker compose -f seaweedfs.yml down     stop it (data survives in the s3-data volume)
 #
 # No bucket setup needed: ingestion creates the sec-raw bucket on first run.
 # No keys configured, so the server accepts any AWS_ACCESS_KEY_ID / SECRET.
 # That is fine on a laptop, never on a server reachable from the internet.
+#
+# Not named docker-compose.yml on purpose: `docker compose` would also merge Astro's
+# docker-compose.override.yml into it and fail. The fixed project name keeps the same volume.
+name: sec-fillings-pipeline
+
 services:
   s3:
     image: chrislusf/seaweedfs:latest
