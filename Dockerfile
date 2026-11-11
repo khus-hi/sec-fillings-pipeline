@@ -1,4 +1,4 @@
-# Astro Runtime = Airflow 3 + Astronomer's defaults (same base as Project 1). Its ONBUILD steps
+# Astro Runtime = Airflow 3 + Astronomer's defaults. Its ONBUILD steps
 # copy the repo in and pip-install requirements.txt (the pipeline's own dependencies).
 FROM astrocrpublic.azurecr.io/runtime:3.3-12
 

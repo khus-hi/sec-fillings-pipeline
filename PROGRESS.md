@@ -18,7 +18,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | 4 | LLM extraction, retries, quarantine | **Done** (150 filings; 3 quarantined) |
 | 5 | Evaluation: hand-checked gold set (32 filings) + XBRL reference (150) | **Done** |
 | 6 | DuckDB + dbt staging → marts, tests | **Done** |
-| 7 | Airflow DAG (Astro, as in Project 1) | **Done** (first scheduled run green, 2 min 19 s) |
+| 7 | Airflow DAG (Astro) | **Done** (first scheduled run green, 2 min 19 s) |
 | 8 | Optional: local vs hosted model comparison | skipped |
 | 9 | Streamlit app | **Done** |
 
@@ -137,7 +137,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
   evaluation scores, quarantined tasks).
 - `app/streamlit_app.py`: three tabs (Risk trends, Companies, Extraction quality); cached
   queries keyed by warehouse path; one-hue charts, a heatmap with a table view.
-- `requirements-app.txt` (streamlit 1.67.0, as in Project 1), `.streamlit/config.toml` (no
+- `requirements-app.txt` (streamlit 1.67.0), `.streamlit/config.toml` (no
   usage stats, headless).
 - `tests/test_app.py`: queries on a dbt-built sample warehouse, read-only connection, empty
   evaluation, and AppTest runs of the app (with filters, and without a warehouse).
@@ -172,7 +172,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | Steps as plain functions, DAG only wires them | testable without Airflow; the DAG reads as a schedule and a failure policy | logic inside `@task` bodies |
 | Retries only where they can help | network and model server retry; parser bugs and failing tests don't | the same retry count everywhere |
 | Weekly schedule, `catchup=False` | 10-Ks are annual; idempotent stages make an empty run nearly free | daily (no benefit), catchup (EDGAR has no "as of" view) |
-| Project 1 patterns reused | `.env` config, store interface, ruff + pytest CI, pinned dev deps | — |
+| Shared project conventions | `.env` config, store interface, ruff + pytest CI, pinned dev deps | — |
 
 ## Real-run metrics
 

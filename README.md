@@ -356,11 +356,21 @@ per-category precision, recall and F1 (macro-averaged). Every run is stored in `
 | Stage | What happened | Fix |
 |---|---|---|
 | 1 | The first full run stored 147 of 150 filings with **no error**. ExxonMobil's ticker (XOM) had moved to a new holding company (EDGAR CIK 2115436, registered with an 8-K12B), whose filing history has no 10-K yet. The 10-K history stays under the old Exxon Mobil Corp CIK (34088). | A company that returns 0 filings now counts as a failure (the run exits non-zero). `companies.csv` can pin several CIKs per ticker, and filings from all of them are merged. |
-
 | 2 | On the first real parse, 39 of 150 Item 8 sections and 24 Item 7 sections were under 2,000 characters. Three layouts caused it: (1) "Item 8" is a one-line pointer and the statements sit in F-pages after Item 15 (NFLX, NVDA, ORCL, PEP, DIS, AMT, PLD); (2) "Item 7" says "incorporated by reference" and MD&A appears later under its own title (JPM, CVX, XOM, AEP); (3) GE, HON and MCD use an annual-report layout: the Item headings exist only in a cross-reference index at the end, and the body uses run-in headings in a different order (GE puts MD&A before Risk Factors). | Title-based fallback for short sections, ending at the next heading or title of any other Item (except "Properties" and "Legal Proceedings", which recur inside the notes). Short sections fell from 9 / 9 / 24 / 39 to 1 / 0 / 3 / 0 (Items 1 / 1A / 7 / 8). A `found_by` column makes the fallback auditable. |
-
 | 4 | The first full extraction run reported 441 / 441 tasks valid and 0 quarantined, yet XOM's FY2023 record had revenue equal to net income ($36.01B): a schema-valid answer read from the wrong row. The sanity rule "net income larger than revenue" missed equality. | Validators reject identical revenue and net income and any net margin above 70%, so the error goes back to the model for a retry. The financials prompt now lists revenue labels ("Sales to customers", "Net sales") and says to use the parent company in combined filings. Cache keys became per task, so only the financials were re-extracted. The report re-checks stored records in SQL, so older records are covered without re-running. Lesson: validation proves shape, not truth; Stage 5 measures truth. |
 
 ## What I'd do at 10x scale
 
-_Filled in at the end._
+- **Storage and compute:** move the raw zone to S3 and the warehouse from one DuckDB file to
+  Parquet tables in S3 (or MotherDuck / Snowflake), so ingestion, extraction and the app no longer
+  compete for a single writer lock.
+- **Extraction throughput:** at 12 s per task on one laptop, 10x the filings is about 15 hours.
+  Run extraction as many parallel workers (Airflow dynamic task mapping per document, or a queue)
+  against a GPU-hosted open model, keeping the same per-task cache so reruns stay incremental.
+- **Model choice by measurement:** run the hosted-model comparison on the gold set and route only
+  the hard tasks (financials in combined or annual-report-style filings) to the stronger model,
+  with a hard spend cap.
+- **Quality at scale:** grow the gold set with stratified sampling, track field F1 per run in a
+  table, and alert when a run drops below the last accepted scores.
+- **Incremental dbt:** make the fact tables incremental on accession number so a weekly run only
+  processes new filings.
