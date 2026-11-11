@@ -20,7 +20,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | 6 | DuckDB + dbt staging → marts, tests | **Done** |
 | 7 | Airflow DAG (Astro, as in Project 1) | **Done** (first scheduled run green, 2 min 19 s) |
 | 8 | Optional: local vs hosted model comparison | skipped |
-| 9 | Streamlit app | **Built**; waiting on a look at it with the real warehouse |
+| 9 | Streamlit app | **Done** |
 
 ## Stage 1: what exists
 
@@ -304,6 +304,13 @@ downloaded, parsed and extracted, so most of that time is the EDGAR check for 50
 plus the evaluation and dbt build. The containers reached SeaweedFS and Ollama on the host
 through `host.docker.internal`.
 
+Stage 9, the app on the real warehouse (2026-11-10): all three tabs render from the marts.
+The extraction-quality tab reports 12 retries, 12.1 s per task on average, 709,974 tokens over
+all extraction runs, revenue found for 95.9% of filings, and 5 quarantined financials tasks
+(D 2024, NVDA 2025, VZ 2025, WMT 2024, XOM 2023), each rejected by a validation rule (revenue
+not positive, revenue equal to net income, or net income far above revenue).
+
 ## Next step
 
-Look at the app on the real warehouse (`streamlit run app/streamlit_app.py`).
+All planned stages are done (Stage 8, the hosted-model comparison, was skipped). Possible
+follow-ups: run Stage 8 within the $5 cap, and extend the gold set beyond 32 filings.
