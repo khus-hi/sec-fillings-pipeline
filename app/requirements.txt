@@ -1,0 +1,6 @@
+# Dependencies for the hosted app on Streamlit Community Cloud, which installs the requirements
+# file next to the entrypoint (app/streamlit_app.py). Only what the app imports: the pipeline's
+# S3, parsing and LLM dependencies are not needed to read the snapshot.
+duckdb==2.0.0
+python-dotenv>=1.0
+streamlit==1.67.0
