@@ -3,7 +3,7 @@
 Turns unstructured 10-K filings from SEC EDGAR into reliable, queryable tables using a local
 open-source LLM, with validation, retries, a quarantine table and a measured evaluation.
 
-**Status:** Stages 1-5 done (ingestion, parsing, extraction schema, LLM extraction, evaluation); Stage 6 (dbt) built. See [PROGRESS.md](PROGRESS.md).
+**Status:** Stages 1-6 done (ingestion, parsing, extraction schema, LLM extraction, evaluation, dbt). See [PROGRESS.md](PROGRESS.md).
 
 ## Architecture
 
@@ -120,7 +120,8 @@ Tests: keys unique and not null, the grain of every model (`unique_combination`)
 against the seed, ranges (net margin, shares, employee counts), plus two cross-model checks: a
 record exists exactly when all three tasks are ok, and every filing is counted once in the risk
 trends. CI builds the project on a sample warehouse written with the Python stages' own DDL, and
-checks that a duplicate company-year fails the build.
+checks that a duplicate company-year fails the build. On the real 150-filing warehouse the
+build runs 53 nodes with 0 failures in under a second.
 
 ## Extraction schema
 

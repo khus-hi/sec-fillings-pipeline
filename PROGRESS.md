@@ -17,7 +17,7 @@ fanless), macOS, Python 3.13, Docker Desktop. Local LLM: `qwen3:8b` via Ollama (
 | 3 | Extraction schema (Pydantic) | **Done** |
 | 4 | LLM extraction, retries, quarantine | **Done** (150 filings; 3 quarantined) |
 | 5 | Evaluation: hand-checked gold set (32 filings) + XBRL reference (150) | **Done** |
-| 6 | DuckDB + dbt staging → marts, tests | **Built**; waiting on the first build against the real warehouse |
+| 6 | DuckDB + dbt staging → marts, tests | **Done** |
 | 7 | Airflow DAG (Astro, as in Project 1) | not started |
 | 8 | Optional: local vs hosted model comparison | not started |
 | 9 | Streamlit app | not started |
@@ -260,7 +260,10 @@ First scored run with gold labels (run `10a10389216d`, qwen3:8b, financials prom
 81 mismatches stored in `eval.mismatches`. COP and OXY revenue show up as XBRL mismatches but
 match the gold set: the model reported total revenues and other income, which is the top line.
 
+Stage 6, first build on the real warehouse (2026-11-10, dbt 1.12.6, dbt-duckdb 1.11.1, 150
+filings): 1 seed, 4 views, 5 tables, 43 data tests; PASS=53 WARN=0 ERROR=0 in 0.44 s. No grain,
+range or consistency test fired on the real data, including the record-vs-tasks check.
+
 ## Next step
 
-Run `cd dbt && dbt build` on the real warehouse, record the pass/warn/fail counts and run time,
-and fix anything the tests catch in the real data. Then Stage 7 (Airflow).
+Stage 7: an Airflow DAG (Astro) that runs ingest → parse → extract → evaluate → dbt build.
